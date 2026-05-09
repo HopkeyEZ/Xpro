@@ -6,7 +6,7 @@ import { aiChat, aiChatWithTools, abortAi, ToolEvent } from './ai-bridge';
 import { setProjectRoot } from './ai-tools';
 import { loadConfig, saveConfig } from './config';
 import { storeMemories, recallMemories, listMemories, forgetMemory, clearMemories, getMemoryStats } from './memory-store';
-import { extractMemories, summarizeFileChange } from './memory-pipeline';
+import { extractMemories, summarizeFileChange, categorizeChanges } from './memory-pipeline';
 
 let shellProcess: ChildProcess | null = null;
 let fsWatcher: fs.FSWatcher | null = null;
@@ -254,6 +254,15 @@ export function registerIpcHandlers(): void {
       return result;
     } catch (err: any) {
       return { ok: false, stored: 0, error: err.message };
+    }
+  });
+
+  ipcMain.handle('memory:categorizeChanges', async (_e, config: any, changes: Array<{ id: string; label: string; filePath: string }>) => {
+    try {
+      const mapping = await categorizeChanges(config, changes);
+      return { ok: true, mapping };
+    } catch (err: any) {
+      return { ok: false, mapping: {}, error: err.message };
     }
   });
 

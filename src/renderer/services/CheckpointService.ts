@@ -13,6 +13,7 @@ export interface FileSnapshot {
 export interface Checkpoint {
   id: string;
   label: string;
+  category?: string;         // AI 归类标签（如 "前端UI", "后端API", "样式" 等）
   timestamp: number;
   snapshots: FileSnapshot[]; // 修改前的文件快照
   applied: boolean;          // 是否已应用
@@ -130,6 +131,27 @@ class CheckpointServiceClass {
       this.notify();
       this.save();
     }
+  }
+
+  /** 批量更新分类 */
+  updateCategories(mapping: Record<string, string>) {
+    let changed = false;
+    for (const [id, cat] of Object.entries(mapping)) {
+      const cp = this.checkpoints.find(c => c.id === id);
+      if (cp && cp.category !== cat) {
+        cp.category = cat;
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.notify();
+      this.save();
+    }
+  }
+
+  /** 获取未分类的检查点 */
+  getUncategorized(): Checkpoint[] {
+    return this.checkpoints.filter(c => !c.category);
   }
 
   /** 清除所有检查点 */

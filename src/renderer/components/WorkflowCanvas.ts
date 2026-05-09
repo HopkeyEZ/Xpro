@@ -68,6 +68,7 @@ export class WorkflowCanvas {
     thinking: false,
   };
   private layoutDir: 'h' | 'v' = 'h';
+  private autoCatTimer: number | null = null;
   private annotating = false;
   private annotateDrawing = false;
   private liveServerUrl: string | null = null;
@@ -880,6 +881,12 @@ export class WorkflowCanvas {
             }
           })
           .catch(() => {});
+
+        // Auto-categorize: debounce 3s after last change
+        if (this.autoCatTimer) clearTimeout(this.autoCatTimer);
+        this.autoCatTimer = window.setTimeout(() => {
+          this.autoCategorize(config);
+        }, 3000);
       }
 
       // 2. Add to approval queue (if approval is enabled)
@@ -1991,9 +1998,44 @@ export class WorkflowCanvas {
 
     /* ── Section 1: File Changes ── */
     const changeTitle = document.createElement('div');
-    changeTitle.style.cssText = 'font-size:12px;font-weight:600;color:var(--node-text);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.08);';
-    changeTitle.textContent = isZh ? `文件变更 (${checkpoints.length})` : `File Changes (${checkpoints.length})`;
+    changeTitle.style.cssText = 'font-size:12px;font-weight:600;color:var(--node-text);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;align-items:center;';
+    changeTitle.innerHTML = isZh ? `文件变更 (${checkpoints.length})` : `File Changes (${checkpoints.length})`;
     panel.appendChild(changeTitle);
+
+    // AI Categorize button
+    if (checkpoints.length >= 2) {
+      const catBtn = document.createElement('button');
+      catBtn.style.cssText = 'background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);border-radius:5px;color:#60a5fa;font-size:10px;padding:2px 8px;cursor:pointer;';
+      catBtn.textContent = isZh ? '🧠 AI 归类' : '🧠 AI Categorize';
+      catBtn.onclick = async () => {
+        catBtn.textContent = isZh ? '分析中...' : 'Analyzing...';
+        catBtn.style.opacity = '0.5';
+        catBtn.style.pointerEvents = 'none';
+        const provider = (document.getElementById('ai-provider') as HTMLSelectElement)?.value || 'openai';
+        const model = (document.getElementById('ai-model') as HTMLInputElement)?.value || 'gpt-4o';
+        const isAnt = provider === 'anthropic';
+        const config = {
+          model, provider,
+          apiKey: isAnt ? this.aiConfig.anthropicKey : this.aiConfig.openaiKey,
+          baseUrl: isAnt ? this.aiConfig.anthropicBase : this.aiConfig.openaiBase,
+        };
+        const uncategorized = CheckpointService.getUncategorized();
+        const changes = uncategorized.map(cp => ({
+          id: cp.id,
+          label: cp.label,
+          filePath: cp.snapshots[0]?.path || '',
+        }));
+        try {
+          const res = await window.xpro.memoryCategorize(config, changes);
+          if (res.ok && res.mapping) {
+            CheckpointService.updateCategories(res.mapping);
+          }
+        } catch {}
+        overlay.remove();
+        this.showMemoryPanel();
+      };
+      changeTitle.appendChild(catBtn);
+    }
 
     if (checkpoints.length === 0) {
       const emptyMsg = document.createElement('div');
@@ -2001,112 +2043,36 @@ export class WorkflowCanvas {
       emptyMsg.textContent = isZh ? '暂无变更。AI 修改文件后自动记录。' : 'No changes yet.';
       panel.appendChild(emptyMsg);
     } else {
-      for (const cp of checkpoints) {
-        const snap = cp.snapshots[0];
-        if (!snap) continue;
-        const fileName = snap.path.split(/[\\/]/).pop() || snap.path;
-        const time = new Date(cp.timestamp);
-        const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}:${time.getSeconds().toString().padStart(2, '0')}`;
-
-        const item = document.createElement('div');
-        item.className = 'mem-change-item';
-
-        const row = document.createElement('div');
-        row.className = 'mem-change-row';
-
-        const dot = document.createElement('span');
-        dot.className = 'mem-dot' + (cp.applied ? '' : ' rolled-back');
-        row.appendChild(dot);
-
-        // LLM summary as main label (falls back to tool:file)
-        const titleEl = document.createElement('span');
-        titleEl.className = 'mem-change-title';
-        titleEl.textContent = cp.label;
-        titleEl.title = snap.path;
-        row.appendChild(titleEl);
-
-        const timeEl = document.createElement('span');
-        timeEl.className = 'mem-time';
-        timeEl.textContent = timeStr;
-        row.appendChild(timeEl);
-
-        // Expand button
-        const expandBtn = document.createElement('button');
-        expandBtn.className = 'mem-expand-btn';
-        expandBtn.textContent = '▸';
-        expandBtn.title = isZh ? '查看代码差异' : 'View diff';
-        row.appendChild(expandBtn);
-
-        // Rollback / Redo button
-        const actionBtn = document.createElement('button');
-        if (cp.applied) {
-          actionBtn.className = 'mem-action-btn rollback';
-          actionBtn.textContent = isZh ? '撤回' : 'Undo';
-        } else {
-          actionBtn.className = 'mem-action-btn redo';
-          actionBtn.textContent = isZh ? '恢复' : 'Redo';
+      // Group by category
+      const hasCategories = checkpoints.some(cp => cp.category);
+      const groups: Map<string, typeof checkpoints> = new Map();
+      if (hasCategories) {
+        for (const cp of checkpoints) {
+          const cat = cp.category || (isZh ? '未分类' : 'Uncategorized');
+          if (!groups.has(cat)) groups.set(cat, []);
+          groups.get(cat)!.push(cp);
         }
-        row.appendChild(actionBtn);
+      } else {
+        groups.set('', checkpoints);
+      }
 
-        item.appendChild(row);
+      const catColors = ['#60a5fa', '#fbbf24', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#94a3b8'];
+      let catIdx = 0;
 
-        // Diff container (hidden)
-        const diffContainer = document.createElement('div');
-        diffContainer.className = 'mem-diff-container hidden';
-        item.appendChild(diffContainer);
+      for (const [category, cps] of groups) {
+        // Category header
+        if (category) {
+          const catHeader = document.createElement('div');
+          const color = catColors[catIdx % catColors.length];
+          catIdx++;
+          catHeader.style.cssText = `font-size:11px;font-weight:600;color:${color};margin:10px 0 4px;padding:3px 8px;background:${color}15;border-left:3px solid ${color};border-radius:0 4px 4px 0;`;
+          catHeader.textContent = `${category} (${cps.length})`;
+          panel.appendChild(catHeader);
+        }
 
-        // Expand toggle
-        expandBtn.addEventListener('click', () => {
-          const isHidden = diffContainer.classList.contains('hidden');
-          if (isHidden) {
-            expandBtn.textContent = '▾';
-            diffContainer.classList.remove('hidden');
-            if (!diffContainer.dataset.rendered) {
-              diffContainer.dataset.rendered = '1';
-              const oldC = snap.content || '';
-              const newC = snap.newContent || '';
-              // File header
-              const fileHeader = document.createElement('div');
-              fileHeader.className = 'mem-diff-file-header';
-              fileHeader.textContent = fileName;
-              diffContainer.appendChild(fileHeader);
-              const diff = ApprovalService.computeCompactDiff(oldC, newC, 3);
-              if (diff.length === 0) {
-                diffContainer.innerHTML += `<div class="mem-diff-empty">${isZh ? '无可见差异' : 'No visible changes'}</div>`;
-              } else {
-                const diffHtml = diff.map(d =>
-                  `<div class="diff-line ${d.type}">${this.escHtml(d.content)}</div>`
-                ).join('');
-                diffContainer.innerHTML += diffHtml;
-              }
-            }
-          } else {
-            expandBtn.textContent = '▸';
-            diffContainer.classList.add('hidden');
-          }
-        });
-
-        // Rollback / Redo action
-        actionBtn.addEventListener('click', async () => {
-          if (cp.applied) {
-            const result = await CheckpointService.rollback(cp.id);
-            if (result.ok) {
-              this.aiAddSystem(isZh ? `已撤回 ${result.restored.length} 个文件` : `Undone ${result.restored.length} file(s)`);
-              if (this.editingPath && result.restored.includes(this.editingPath)) this.refreshOpenFile();
-            }
-          } else {
-            const result = await CheckpointService.redo(cp.id);
-            if (result.ok) {
-              this.aiAddSystem(isZh ? `已恢复 ${result.restored.length} 个文件` : `Re-applied ${result.restored.length} file(s)`);
-              if (this.editingPath && result.restored.includes(this.editingPath)) this.refreshOpenFile();
-            }
-          }
-          overlay.remove();
-          this.updateMemoryIndicator();
-          this.showMemoryPanel();
-        });
-
-        panel.appendChild(item);
+        for (const cp of cps) {
+          panel.appendChild(this.renderCheckpointItem(cp, isZh, overlay));
+        }
       }
     }
 
@@ -2167,6 +2133,126 @@ export class WorkflowCanvas {
     overlay.appendChild(panel);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
     document.body.appendChild(overlay);
+  }
+
+  /** Auto-categorize uncategorized checkpoints via AI */
+  private async autoCategorize(config: any) {
+    const uncategorized = CheckpointService.getUncategorized();
+    if (uncategorized.length < 2) return;
+    const changes = uncategorized.map(cp => ({
+      id: cp.id,
+      label: cp.label,
+      filePath: cp.snapshots[0]?.path || '',
+    }));
+    try {
+      const res = await window.xpro.memoryCategorize(config, changes);
+      if (res.ok && res.mapping) {
+        CheckpointService.updateCategories(res.mapping);
+        console.log(`[AutoCategorize] Categorized ${Object.keys(res.mapping).length} changes`);
+      }
+    } catch (e) {
+      console.warn('[AutoCategorize] Failed:', e);
+    }
+  }
+
+  /** Render a single checkpoint item for the memory panel */
+  private renderCheckpointItem(cp: any, isZh: boolean, overlay: HTMLElement): HTMLElement {
+    const snap = cp.snapshots[0];
+    const fileName = snap ? (snap.path.split(/[\\/]/).pop() || snap.path) : '';
+    const time = new Date(cp.timestamp);
+    const timeStr = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}:${time.getSeconds().toString().padStart(2, '0')}`;
+
+    const item = document.createElement('div');
+    item.className = 'mem-change-item';
+
+    const row = document.createElement('div');
+    row.className = 'mem-change-row';
+
+    const dot = document.createElement('span');
+    dot.className = 'mem-dot' + (cp.applied ? '' : ' rolled-back');
+    row.appendChild(dot);
+
+    const titleEl = document.createElement('span');
+    titleEl.className = 'mem-change-title';
+    titleEl.textContent = cp.label;
+    titleEl.title = snap?.path || '';
+    row.appendChild(titleEl);
+
+    const timeEl = document.createElement('span');
+    timeEl.className = 'mem-time';
+    timeEl.textContent = timeStr;
+    row.appendChild(timeEl);
+
+    const expandBtn = document.createElement('button');
+    expandBtn.className = 'mem-expand-btn';
+    expandBtn.textContent = '▸';
+    expandBtn.title = isZh ? '查看代码差异' : 'View diff';
+    row.appendChild(expandBtn);
+
+    const actionBtn = document.createElement('button');
+    if (cp.applied) {
+      actionBtn.className = 'mem-action-btn rollback';
+      actionBtn.textContent = isZh ? '撤回' : 'Undo';
+    } else {
+      actionBtn.className = 'mem-action-btn redo';
+      actionBtn.textContent = isZh ? '恢复' : 'Redo';
+    }
+    row.appendChild(actionBtn);
+    item.appendChild(row);
+
+    const diffContainer = document.createElement('div');
+    diffContainer.className = 'mem-diff-container hidden';
+    item.appendChild(diffContainer);
+
+    expandBtn.addEventListener('click', () => {
+      const isHidden = diffContainer.classList.contains('hidden');
+      if (isHidden) {
+        expandBtn.textContent = '▾';
+        diffContainer.classList.remove('hidden');
+        if (!diffContainer.dataset.rendered && snap) {
+          diffContainer.dataset.rendered = '1';
+          const oldC = snap.content || '';
+          const newC = snap.newContent || '';
+          const fileHeader = document.createElement('div');
+          fileHeader.className = 'mem-diff-file-header';
+          fileHeader.textContent = fileName;
+          diffContainer.appendChild(fileHeader);
+          const diff = ApprovalService.computeCompactDiff(oldC, newC, 3);
+          if (diff.length === 0) {
+            diffContainer.innerHTML += `<div class="mem-diff-empty">${isZh ? '无可见差异' : 'No visible changes'}</div>`;
+          } else {
+            const diffHtml = diff.map((d: any) =>
+              `<div class="diff-line ${d.type}">${this.escHtml(d.content)}</div>`
+            ).join('');
+            diffContainer.innerHTML += diffHtml;
+          }
+        }
+      } else {
+        expandBtn.textContent = '▸';
+        diffContainer.classList.add('hidden');
+      }
+    });
+
+    actionBtn.addEventListener('click', async () => {
+      if (cp.applied) {
+        const result = await CheckpointService.rollback(cp.id);
+        if (result.ok) {
+          this.aiAddSystem(isZh ? `已撤回 ${result.restored.length} 个文件` : `Undone ${result.restored.length} file(s)`);
+          if (this.editingPath && result.restored.includes(this.editingPath)) this.refreshOpenFile();
+        }
+      } else {
+        const result = await CheckpointService.redo(cp.id);
+        if (result.ok) {
+          this.aiAddSystem(isZh ? `已恢复 ${result.restored.length} 个文件` : `Re-applied ${result.restored.length} file(s)`);
+          if (this.editingPath && result.restored.includes(this.editingPath)) this.refreshOpenFile();
+        }
+      }
+      overlay.remove();
+      this.updateMemoryIndicator();
+      this.showMemoryPanel();
+    });
+
+    return item;
   }
 
   private escHtml(s: string): string {

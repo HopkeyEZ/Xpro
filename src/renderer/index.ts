@@ -32,6 +32,8 @@ declare global {
       memoryClear: (projectPath: string) => Promise<{ ok: boolean; error?: string }>;
       memoryStats: (projectPath: string) => Promise<{ ok: boolean; data?: any; error?: string }>;
       memoryIngest: (projectPath: string, config: any, messages: any[], sessionId: string) => Promise<{ ok: boolean; stored: number; error?: string }>;
+      memoryCategorize: (config: any, changes: Array<{ id: string; label: string; filePath: string }>) => Promise<{ ok: boolean; mapping?: Record<string, string>; error?: string }>;
+      memorySummarizeChange: (config: any, filePath: string, oldContent: string, newContent: string) => Promise<{ ok: boolean; summary?: string; error?: string }>;
     };
   }
 }

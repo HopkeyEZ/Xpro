@@ -222,6 +222,77 @@ export async function extractMemories(
 }
 
 /**
+ * AI-powered batch categorization of file changes.
+ * Takes a list of {id, label, filePath} and returns a mapping of id -> category.
+ */
+export async function categorizeChanges(
+  config: AiConfig,
+  changes: Array<{ id: string; label: string; filePath: string }>,
+): Promise<Record<string, string>> {
+  if (!config.apiKey || !config.baseUrl || changes.length === 0) return {};
+
+  const changeList = changes.map((c, i) =>
+    `${i + 1}. [${c.id}] ${c.filePath.split(/[\\/]/).pop()} — ${c.label}`
+  ).join('\n');
+
+  const prompt = `You are a code change categorizer. Given the following file changes, group them into categories based on their impact area.
+
+Categories should be short labels like: Frontend UI, Backend API, Styles/CSS, Config, Database, Routing, State Management, Build/Deploy, Tests, Documentation, etc. Use Chinese labels.
+
+If multiple changes affect the same area, give them the same category. Use at most 5-6 categories.
+
+Changes:
+${changeList}
+
+Respond with ONLY a JSON object mapping each change ID to its category. Example:
+{"cp_123": "前端UI", "cp_456": "后端API", "cp_789": "前端UI"}
+
+JSON:`;
+
+  try {
+    const base = config.baseUrl.replace(/\/+$/, '');
+    const isDeepSeek = base.includes('deepseek');
+    const bodyObj: any = {
+      model: config.model,
+      max_tokens: 500,
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }],
+    };
+    if (isDeepSeek) {
+      bodyObj.thinking = { type: 'disabled' };
+      bodyObj.response_format = { type: 'json_object' };
+    }
+
+    const res = await net.fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify(bodyObj),
+    });
+    if (!res.ok) return {};
+
+    const json = await res.json() as any;
+    const text = json.choices?.[0]?.message?.content || '';
+    // Extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return {};
+    const parsed = JSON.parse(jsonMatch[0]);
+    // Validate: must be Record<string, string>
+    const result: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === 'string') result[k] = v;
+    }
+    console.log(`[Memory-Pipeline] Categorized ${Object.keys(result).length} changes`);
+    return result;
+  } catch (e) {
+    console.warn('[Memory-Pipeline] categorizeChanges error:', e);
+    return {};
+  }
+}
+
+/**
  * Generate a short summary title for a file change using LLM.
  */
 export async function summarizeFileChange(

@@ -59,6 +59,8 @@ contextBridge.exposeInMainWorld('xpro', {
     ipcRenderer.invoke('memory:ingest', projectPath, config, messages, sessionId),
   memorySummarizeChange: (config: any, filePath: string, oldContent: string, newContent: string) =>
     ipcRenderer.invoke('memory:summarizeChange', config, filePath, oldContent, newContent),
+  memoryCategorize: (config: any, changes: Array<{ id: string; label: string; filePath: string }>) =>
+    ipcRenderer.invoke('memory:categorizeChanges', config, changes),
 
   // App
   restart: () => ipcRenderer.invoke('app:restart'),
