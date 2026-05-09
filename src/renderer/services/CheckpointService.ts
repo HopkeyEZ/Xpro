@@ -154,6 +154,13 @@ class CheckpointServiceClass {
     return this.checkpoints.filter(c => !c.category);
   }
 
+  /** 删除单个检查点 */
+  remove(checkpointId: string) {
+    this.checkpoints = this.checkpoints.filter(c => c.id !== checkpointId);
+    this.notify();
+    this.save();
+  }
+
   /** 清除所有检查点 */
   clear() {
     this.checkpoints = [];

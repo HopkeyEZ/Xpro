@@ -2002,40 +2002,6 @@ export class WorkflowCanvas {
     changeTitle.innerHTML = isZh ? `文件变更 (${checkpoints.length})` : `File Changes (${checkpoints.length})`;
     panel.appendChild(changeTitle);
 
-    // AI Categorize button
-    if (checkpoints.length >= 2) {
-      const catBtn = document.createElement('button');
-      catBtn.style.cssText = 'background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.3);border-radius:5px;color:#60a5fa;font-size:10px;padding:2px 8px;cursor:pointer;';
-      catBtn.textContent = isZh ? '🧠 AI 归类' : '🧠 AI Categorize';
-      catBtn.onclick = async () => {
-        catBtn.textContent = isZh ? '分析中...' : 'Analyzing...';
-        catBtn.style.opacity = '0.5';
-        catBtn.style.pointerEvents = 'none';
-        const provider = (document.getElementById('ai-provider') as HTMLSelectElement)?.value || 'openai';
-        const model = (document.getElementById('ai-model') as HTMLInputElement)?.value || 'gpt-4o';
-        const isAnt = provider === 'anthropic';
-        const config = {
-          model, provider,
-          apiKey: isAnt ? this.aiConfig.anthropicKey : this.aiConfig.openaiKey,
-          baseUrl: isAnt ? this.aiConfig.anthropicBase : this.aiConfig.openaiBase,
-        };
-        const uncategorized = CheckpointService.getUncategorized();
-        const changes = uncategorized.map(cp => ({
-          id: cp.id,
-          label: cp.label,
-          filePath: cp.snapshots[0]?.path || '',
-        }));
-        try {
-          const res = await window.xpro.memoryCategorize(config, changes);
-          if (res.ok && res.mapping) {
-            CheckpointService.updateCategories(res.mapping);
-          }
-        } catch {}
-        overlay.remove();
-        this.showMemoryPanel();
-      };
-      changeTitle.appendChild(catBtn);
-    }
 
     if (checkpoints.length === 0) {
       const emptyMsg = document.createElement('div');
@@ -2198,6 +2164,20 @@ export class WorkflowCanvas {
       actionBtn.textContent = isZh ? '恢复' : 'Redo';
     }
     row.appendChild(actionBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'mem-action-btn';
+    delBtn.textContent = '✕';
+    delBtn.title = isZh ? '删除此记录' : 'Delete';
+    delBtn.style.cssText = 'background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;font-size:10px;padding:1px 6px;margin-left:4px;border-radius:4px;cursor:pointer;';
+    delBtn.addEventListener('click', () => {
+      CheckpointService.remove(cp.id);
+      overlay.remove();
+      this.updateMemoryIndicator();
+      this.showMemoryPanel();
+    });
+    row.appendChild(delBtn);
+
     item.appendChild(row);
 
     const diffContainer = document.createElement('div');
