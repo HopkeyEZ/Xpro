@@ -1,0 +1,18 @@
+[package]
+name = "xpro-native"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", features = ["napi4"] }
+napi-derive = "2"
+grep-regex = "0.1"
+grep-searcher = "0.1"
+walkdir = "2"
+ignore = "0.4"
+
+[build-dependencies]
+napi-build = "2"

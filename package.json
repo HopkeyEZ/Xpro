@@ -1,0 +1,65 @@
+{
+  "name": "xpro",
+  "version": "0.1.0",
+  "description": "Xpro — AI-powered IDE editor (OpenAI & Anthropic)",
+  "author": "Hopkey",
+  "license": "MIT",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\" \"npm run dev:electron\"",
+    "dev:main": "tsc -p tsconfig.main.json --watch",
+    "dev:renderer": "webpack serve --config webpack.renderer.js --mode development",
+    "dev:electron": "wait-on http://localhost:9080 && cross-env NODE_ENV=development electron dist/main/index.js",
+    "build": "npm run build:main && npm run build:renderer && npm run build:native",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "webpack --config webpack.renderer.js --mode production",
+    "build:native": "cd native && npm run build",
+    "start": "electron dist/main/index.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "monaco-editor": "^0.50.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.0.0",
+    "cross-env": "^10.1.0",
+    "css-loader": "^7.0.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0",
+    "html-webpack-plugin": "^5.0.0",
+    "monaco-editor-webpack-plugin": "^7.0.0",
+    "rcedit": "^5.0.2",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.0.0",
+    "typescript": "^5.5.0",
+    "wait-on": "^9.0.5",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.0.0",
+    "webpack-dev-server": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.hopkey.xpro",
+    "productName": "Xpro",
+    "files": [
+      "dist/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "afterPack": "./build/afterPack.js",
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  }
+}

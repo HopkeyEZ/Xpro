@@ -1,0 +1,8 @@
+node_modules/
+dist/
+native/target/
+native/index.node
+*.exe
+*.pdb
+xpro_config.json
+.env

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Xpro – Workflow</title>
+</head>
+<body>
+  <!-- 顶部工具栏 -->
+  <div id="toolbar">
+    <div id="toolbar-left">
+      <span class="toolbar-brand">⬡ Xpro</span>
+      <button id="btn-open-folder" class="toolbar-btn" title="打开文件夹">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M14.5 3H7.71l-.85-.85L6.5 2H1.5l-.5.5v11l.5.5h13l.5-.5v-10l-.5-.5zm-.51 8.49V13H2V3h4.29l.85.85.36.15H14v7.49z"/></svg>
+        <span>Open Folder</span>
+      </button>
+      <button id="btn-open-files" class="toolbar-btn" title="选择文件">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.85 4.44l-3.28-3.3-.35-.14H4.5l-.5.5v13l.5.5h8l.5-.5V4.8l-.15-.36zM10 2.29L12.71 5H10V2.29zM12 14H5V2h4v3.5l.5.5H12v8z"/></svg>
+        <span>Open Files</span>
+      </button>
+      <span class="toolbar-sep"></span>
+      <button id="btn-layout-h" class="toolbar-btn active" title="从左到右布局">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h3v10H2V3zm5 2h3v6H7V5zm5-1h3v8h-3V4z"/></svg>
+      </button>
+      <button id="btn-layout-v" class="toolbar-btn" title="从上到下布局">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10v3H3V2zm2 5h6v3H5V7zm-1 5h8v3H4v-3z"/></svg>
+      </button>
+    </div>
+    <div id="toolbar-center">
+      <span id="folder-path">No folder opened</span>
+    </div>
+    <div id="toolbar-right">
+      <button id="btn-search" class="toolbar-btn" title="Search (Ctrl+F)">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M15.25 13.48l-3.6-3.6a6.01 6.01 0 10-1.77 1.77l3.6 3.6a1.25 1.25 0 001.77-1.77zM2 6.5a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z"/></svg>
+      </button>
+      <button id="btn-ai-settings" class="toolbar-btn" title="API Settings">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M9.1 4.4L8.6 2H7.4l-.5 2.4-.7.3-2-1.3-.9.8 1.3 2-.3.7L2 7.4v1.2l2.4.5.3.7-1.3 2 .8.9 2-1.3.7.3.5 2.4h1.2l.5-2.4.7-.3 2 1.3.9-.8-1.3-2 .3-.7 2.4-.5V7.4l-2.4-.5-.3-.7 1.3-2-.8-.9-2 1.3-.7-.3zM8 10a2 2 0 110-4 2 2 0 010 4z"/></svg>
+      </button>
+      <button id="btn-preview" class="toolbar-btn preview-btn hidden" title="打开预览">Preview</button>
+      <button id="btn-restart" class="toolbar-btn" title="重启 Xpro">Restart</button>
+      <button id="btn-lang" class="toolbar-btn" title="Language">EN / 中</button>
+      <span id="zoom-level">100%</span>
+      <span id="node-count" data-i18n="nodes">0 nodes</span>
+    </div>
+  </div>
+
+  <!-- 搜索/过滤栏 -->
+  <div id="search-bar">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="var(--node-text-dim)"><path d="M15.25 13.48l-3.6-3.6a6.01 6.01 0 10-1.77 1.77l3.6 3.6a1.25 1.25 0 001.77-1.77zM2 6.5a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z"/></svg>
+    <input id="search-input" type="text" placeholder="Search files..." autocomplete="off" />
+    <span id="search-results"></span>
+    <div style="width:1px;height:18px;background:var(--detail-border)"></div>
+    <button class="filter-btn" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="js">JS/TS</button>
+    <button class="filter-btn" data-filter="py">Python</button>
+    <button class="filter-btn" data-filter="style">CSS</button>
+    <button class="filter-btn" data-filter="doc">Docs</button>
+    <button class="filter-btn" data-filter="dir">Folders</button>
+    <button id="search-close">✕</button>
+  </div>
+
+  <!-- 画布区域 -->
+  <div id="canvas-viewport">
+    <div id="canvas">
+      <!-- SVG 连线层 -->
+      <svg id="connections-layer" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:0;left:0;width:20000px;height:20000px;overflow:visible;pointer-events:none"></svg>
+      <!-- 节点层 -->
+      <div id="nodes-layer"></div>
+    </div>
+  </div>
+
+  <!-- 节点详情面板（点击节点时弹出） -->
+  <div id="detail-panel" class="hidden">
+    <div class="detail-resize-handle left"></div>
+    <div class="detail-resize-handle right"></div>
+    <div class="detail-resize-handle top"></div>
+    <div class="detail-resize-handle bottom"></div>
+    <div class="detail-resize-handle corner-bl"></div>
+    <div class="detail-resize-handle corner-tl"></div>
+    <div class="detail-resize-handle corner-br"></div>
+    <div class="detail-resize-handle corner-tr"></div>
+    <div id="detail-header">
+      <span id="detail-title">File</span>
+      <div id="url-bar" class="hidden">
+        <button id="url-back" class="url-nav-btn" title="Back">◀</button>
+        <button id="url-forward" class="url-nav-btn" title="Forward">▶</button>
+        <button id="url-refresh" class="url-nav-btn" title="Refresh">↻</button>
+        <input id="url-input" type="text" spellcheck="false" placeholder="http://localhost:5173" />
+      </div>
+      <div id="detail-actions">
+        <span id="detail-modified" class="hidden">● Modified</span>
+        <button id="detail-save" class="toolbar-btn hidden" title="Save (Ctrl+S)" data-i18n="save">Save</button>
+        <button id="detail-close">✕</button>
+      </div>
+    </div>
+    <div id="detail-body">
+      <div id="preview-pane" class="hidden">
+        <div id="preview-toolbar">
+          <button id="preview-annotate" class="toolbar-btn" title="标注模式：圈选页面内容发送给 AI" data-i18n="annotate">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            <span id="annotate-label">Edit</span>
+          </button>
+          <div id="preview-toolbar-right">
+            <button id="annotate-clear" class="toolbar-btn hidden" title="清除标注">Clear</button>
+            <button id="preview-refresh" class="toolbar-btn" title="Refresh">↻</button>
+          </div>
+        </div>
+        <div id="preview-container">
+          <iframe id="preview-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-modals" referrerpolicy="no-referrer"></iframe>
+          <canvas id="annotate-canvas" class="hidden"></canvas>
+        </div>
+      </div>
+      <div id="editor-pane">
+        <textarea id="detail-editor" spellcheck="false"></textarea>
+        <div id="detail-binary"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Server 预览提示条 -->
+  <div id="live-preview-banner" class="hidden">
+    <span id="live-preview-icon">&#x26A1;</span>
+    <span>Live Server:</span>
+    <span id="live-preview-url"></span>
+    <button id="live-preview-open" class="toolbar-btn" title="Show Preview">Preview</button>
+    <button id="live-preview-refresh" class="toolbar-btn" title="Refresh">&#x21BB;</button>
+    <button id="live-preview-close" class="toolbar-btn" title="Close">&#x2715;</button>
+  </div>
+
+  <!-- 底部面板容器：AI 左 + 终端右 -->
+  <div id="bottom-container">
+    <!-- AI 聊天面板 -->
+    <div id="ai-panel">
+      <div id="ai-panel-header">
+        <span id="ai-panel-title" data-i18n="aiTitle">AI Assistant</span>
+        <button id="btn-ai-mode" class="toolbar-btn ai-mode-btn" title="Switch Mode">⚡ Agent</button>
+        <button id="btn-memory" class="toolbar-btn memory-btn" title="Project Memory">🧠 <span id="memory-count">0</span></button>
+        <span id="token-display" class="toolbar-btn token-display-btn" title="Token Usage">↑ <span id="token-in">0</span> ↓ <span id="token-out">0</span></span>
+        <div id="ai-panel-controls">
+          <select id="ai-provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+          <input id="ai-model" type="text" placeholder="Model (e.g. gpt-4o)" value="gpt-4o" spellcheck="false" />
+          <button id="btn-clear-ai" class="toolbar-btn" title="Clear Chat">Clear</button>
+          <button id="btn-toggle-ai" class="toolbar-btn" title="Toggle Panel">▾</button>
+        </div>
+      </div>
+      <!-- Approval Bar (shown when pending changes exist) -->
+      <div id="approval-bar" class="hidden">
+        <span id="approval-text">0 pending changes</span>
+        <button id="btn-approve-all" class="approval-btn approve">✓ Accept All</button>
+        <button id="btn-reject-all" class="approval-btn reject">✗ Reject All</button>
+        <button id="btn-show-diffs" class="approval-btn view">View Diffs</button>
+      </div>
+      <!-- Checkpoint Panel is merged into Memory Panel -->
+      <div id="ai-panel-body">
+        <div id="ai-messages"></div>
+        <!-- Lint Status Bar -->
+        <div id="lint-bar" class="hidden">
+          <span id="lint-status"></span>
+        </div>
+        <div id="ai-input-row">
+          <textarea id="ai-input" rows="2" placeholder="Ask AI to help with your code... (Enter to send, Shift+Enter for newline)" spellcheck="false"></textarea>
+          <button id="btn-ai-send" title="Send">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1.5l14 6.5-14 6.5V9l8-1-8-1V1.5z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 终端面板 -->
+    <div id="bottom-panel">
+      <div id="bottom-panel-header">
+        <span id="bottom-panel-title">Terminal</span>
+        <div id="bottom-panel-actions">
+          <button id="btn-clear-terminal" class="toolbar-btn" title="Clear">Clear</button>
+          <button id="btn-toggle-bottom" class="toolbar-btn" title="Toggle Panel">▾</button>
+        </div>
+      </div>
+      <div id="bottom-panel-body">
+        <div id="terminal-output" tabindex="0"></div>
+        <div id="terminal-input-row">
+          <span id="terminal-prompt">$</span>
+          <input id="terminal-input" type="text" spellcheck="false" placeholder="Type a command..." autocomplete="off" />
+          <button id="btn-terminal-send" title="Run">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1.5l14 6.5-14 6.5V9l8-1-8-1V1.5z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Key 设置弹窗 -->
+  <div id="ai-settings-modal" class="hidden">
+    <div id="ai-settings-content">
+      <h3 id="ai-settings-title">API Settings</h3>
+      <label>Base URL</label>
+      <input id="api-base" type="text" placeholder="https://api.openai.com/v1" spellcheck="false" />
+      <label>API Key</label>
+      <input id="api-key" type="password" placeholder="sk-..." spellcheck="false" />
+      <div id="thinking-toggle" style="display:flex;align-items:center;gap:8px;margin:10px 0;">
+        <label for="chk-thinking" style="font-size:12px;color:#ccc;cursor:pointer;">Thinking Mode</label>
+        <input id="chk-thinking" type="checkbox" style="cursor:pointer;" />
+      </div>
+      <div id="ai-settings-actions">
+        <button id="btn-save-ai-settings" class="toolbar-btn">Save</button>
+        <button id="btn-close-ai-settings" class="toolbar-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Diff Modal -->
+  <div id="diff-modal" class="hidden">
+    <div id="diff-content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0;font-size:14px;color:var(--node-text)">Pending Changes</h3>
+        <button id="btn-close-diff" style="background:none;border:none;color:var(--node-text-dim);cursor:pointer;font-size:18px">✕</button>
+      </div>
+      <div id="diff-body"></div>
+    </div>
+  </div>
+
+  <!-- 右键菜单 -->
+  <div id="context-menu" class="hidden">
+    <div class="ctx-item" data-action="open">Open File</div>
+    <div class="ctx-item" data-action="connections">Show Connections</div>
+    <div class="ctx-item" data-action="collapse">Collapse Children</div>
+  </div>
+
+</body>
+</html>
