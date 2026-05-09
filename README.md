@@ -6,6 +6,16 @@ Built for DeepSeek V4 (`deepseek-v4-pro` / `deepseek-v4-flash`), and also works 
 
 [简体中文](#简体中文)
 
+### Screenshots
+
+**Agent Mode** — AI autonomously reads files, runs commands, and edits code:
+
+![Xpro Agent Mode](docs/assets/xpro-agent-mode.png)
+
+**Memory & Change Tracking** — AI-categorized file changes + project memory:
+
+![Xpro Memory Panel](docs/assets/xpro-memory-panel.png)
+
 ## What Is It?
 
 Xpro is a desktop coding IDE that combines a full-featured code editor (Monaco / VS Code core) with an AI agent that can autonomously modify your project. It runs as a native Electron application on Windows.
