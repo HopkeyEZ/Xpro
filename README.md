@@ -2,7 +2,7 @@
 
 AI-powered desktop IDE with autonomous agent mode. It reads and edits your codebase, runs shell commands, manages sub-agents, and remembers project context across sessions — all from a single GUI window.
 
-Built for DeepSeek V4 (`deepseek-v4-pro` / `deepseek-v4-flash`), and also works with OpenAI and Anthropic models.
+Optimized for DeepSeek (`deepseek-v4-pro` / `deepseek-v4-flash`), and also compatible with OpenAI and Anthropic protocols.
 
 [简体中文](#简体中文)
 
@@ -146,7 +146,7 @@ Pull requests welcome. Check the [open issues](https://github.com/HopkeyEZ/Xpro/
 
 Xpro 是一个桌面 AI 编程 IDE，内置自主 Agent 模式。AI 可以直接读写代码、执行命令、管理子代理、跨会话记忆项目上下文。
 
-基于 DeepSeek V4（`deepseek-v4-pro` / `deepseek-v4-flash`）构建，同时兼容 OpenAI 和 Anthropic 模型。
+专为 DeepSeek（`deepseek-v4-pro` / `deepseek-v4-flash`）优化，同时兼容 OpenAI 和 Anthropic 协议。
 
 ### 核心功能
 
