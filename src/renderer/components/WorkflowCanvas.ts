@@ -62,12 +62,12 @@ export class WorkflowCanvas {
   private activeFilter: string = 'all';
   private searchQuery: string = '';
   private aiMessages: Array<{ role: string; content: string }> = [];
-  private aiConfig: { openaiKey: string; openaiBase: string; anthropicKey: string; anthropicBase: string; thinking: boolean } = {
+  private aiConfig: { openaiKey: string; openaiBase: string; anthropicKey: string; anthropicBase: string; thinking: boolean; maxTokens: number; reasoningEffort: string } = {
     openaiKey: '', openaiBase: 'https://api.openai.com/v1',
     anthropicKey: '', anthropicBase: 'https://api.anthropic.com',
-    thinking: false,
+    thinking: false, maxTokens: 384000, reasoningEffort: 'max',
   };
-  private apiProfiles: Array<{ name: string; baseUrl: string; apiKey: string; model: string; provider: string }> = [];
+  private apiProfiles: Array<{ name: string; baseUrl: string; apiKey: string; model: string; provider: string; maxTokens?: number; reasoningEffort?: string }> = [];
   private activeProfile: string = '';
   private layoutDir: 'h' | 'v' = 'h';
   private autoCatTimer: number | null = null;
@@ -90,8 +90,8 @@ export class WorkflowCanvas {
       savedProfiles: 'Saved Profiles', noProfiles: 'No saved profiles',
       profileName: 'Profile Name', profileNamePh: 'e.g. DeepSeek, OpenAI, Claude...',
       baseUrl: 'Base URL', apiKey: 'API Key', model: 'Model',
-      modelPh: 'e.g. deepseek-v4-flash, gpt-4o', thinkingMode: 'Thinking Mode',
-      saveProfile: 'Save Profile', use: 'Use', delete: 'Delete',
+      modelPh: 'e.g. deepseek-v4-flash, gpt-4o', maxTokens: 'Max Tokens', reasoningEffort: 'Reasoning Effort',
+      thinkingMode: 'Thinking Mode', saveProfile: 'Save Profile', use: 'Use', delete: 'Delete',
       ctxOpen: 'Open File', ctxConn: 'Show Connections', ctxCollapse: 'Collapse Children',
       annotate: 'Edit', annotateActive: 'Drawing...', restart: 'Restart',
     },
@@ -106,8 +106,8 @@ export class WorkflowCanvas {
       savedProfiles: '已保存配置', noProfiles: '暂无保存的配置',
       profileName: '配置名称', profileNamePh: '如 DeepSeek、OpenAI、Claude...',
       baseUrl: '接口地址', apiKey: '密钥', model: '模型',
-      modelPh: '如 deepseek-v4-flash、gpt-4o', thinkingMode: '思考模式',
-      saveProfile: '保存配置', use: '使用', delete: '删除',
+      modelPh: '如 deepseek-v4-flash、gpt-4o', maxTokens: '最大 Tokens', reasoningEffort: '推理强度',
+      thinkingMode: '思考模式', saveProfile: '保存配置', use: '使用', delete: '删除',
       ctxOpen: '打开文件', ctxConn: '显示连接', ctxCollapse: '折叠子节点',
       annotate: '标注编辑', annotateActive: '绘制中...', restart: '重启',
     },
@@ -783,6 +783,8 @@ export class WorkflowCanvas {
           apiBaseInput.value = p.baseUrl;
           apiKeyInput.value = p.apiKey;
           profileModelInput.value = p.model;
+          (document.getElementById('profile-max-tokens') as HTMLInputElement).value = String(p.maxTokens || 384000);
+          (document.getElementById('profile-reasoning-effort') as HTMLSelectElement).value = p.reasoningEffort || 'max';
           (document.getElementById('ai-provider') as HTMLSelectElement).value = p.provider || 'openai';
           renderProfiles();
         };
@@ -812,6 +814,8 @@ export class WorkflowCanvas {
       apiKeyInput.placeholder = isAnt ? 'sk-ant-...' : 'sk-...';
       profileNameInput.value = this.activeProfile;
       profileModelInput.value = (document.getElementById('ai-model') as HTMLInputElement).value;
+      (document.getElementById('profile-max-tokens') as HTMLInputElement).value = String(this.aiConfig.maxTokens || 384000);
+      (document.getElementById('profile-reasoning-effort') as HTMLSelectElement).value = this.aiConfig.reasoningEffort || 'max';
       thinkingChk.checked = this.aiConfig.thinking;
       renderProfiles();
       modal.classList.remove('hidden');
@@ -824,12 +828,16 @@ export class WorkflowCanvas {
       const name = profileNameInput.value.trim();
       if (!name) { profileNameInput.focus(); return; }
       const provider = (document.getElementById('ai-provider') as HTMLSelectElement).value;
+      const maxTokens = parseInt((document.getElementById('profile-max-tokens') as HTMLInputElement).value) || 384000;
+      const reasoningEffort = (document.getElementById('profile-reasoning-effort') as HTMLSelectElement).value || 'max';
       const profile = {
         name,
         baseUrl: apiBaseInput.value.trim(),
         apiKey: apiKeyInput.value.trim(),
         model: profileModelInput.value.trim(),
         provider,
+        maxTokens,
+        reasoningEffort,
       };
       const idx = this.apiProfiles.findIndex(p => p.name === name);
       if (idx >= 0) { this.apiProfiles[idx] = profile; } else { this.apiProfiles.push(profile); }
@@ -853,9 +861,11 @@ export class WorkflowCanvas {
       const model = profileModelInput.value.trim();
       if (model) (document.getElementById('ai-model') as HTMLInputElement).value = model;
       this.aiConfig.thinking = thinkingChk.checked;
+      this.aiConfig.maxTokens = parseInt((document.getElementById('profile-max-tokens') as HTMLInputElement).value) || 384000;
+      this.aiConfig.reasoningEffort = (document.getElementById('profile-reasoning-effort') as HTMLSelectElement).value || 'max';
       modal.classList.add('hidden');
       this.saveAiConfig();
-      this.aiAddSystem(`Settings applied. Thinking: ${this.aiConfig.thinking ? 'ON' : 'OFF'}`);
+      this.aiAddSystem(`Settings applied. Thinking: ${this.aiConfig.thinking ? 'ON' : 'OFF'} | MaxTokens: ${this.aiConfig.maxTokens} | Effort: ${this.aiConfig.reasoningEffort}`);
     });
 
     // AI send / stop
@@ -1069,6 +1079,8 @@ export class WorkflowCanvas {
     s('lbl-base-url', t('baseUrl'));
     s('lbl-api-key', t('apiKey'));
     s('lbl-model', t('model'));
+    s('lbl-max-tokens', t('maxTokens'));
+    s('lbl-reasoning-effort', t('reasoningEffort'));
     s('lbl-thinking', t('thinkingMode'));
     ph('profile-model', t('modelPh'));
     s('btn-save-profile', t('saveProfile'));
@@ -1194,6 +1206,39 @@ export class WorkflowCanvas {
     this.fitView();
     this.startWatching();
     this.updateMemoryIndicator();
+
+    // Auto-build code index in background
+    this.buildCodeIndex(folderPath);
+  }
+
+  private async buildCodeIndex(folderPath: string) {
+    const config = this.getAiConfigForApi();
+    if (!config.apiKey) return; // No API key, skip indexing
+
+    try {
+      const stats = await window.xpro.indexStats(folderPath);
+      if (stats.ok && stats.index && stats.index.chunks > 0) {
+        console.log(`[Index] Already indexed: ${stats.index.chunks} chunks`);
+        return; // Already indexed
+      }
+      console.log('[Index] Building code index...');
+      this.aiAddSystem(this.lang === 'zh' ? '正在构建代码索引...' : 'Building code index...');
+      const result = await window.xpro.indexBuild(folderPath, config);
+      if (result.ok) {
+        this.aiAddSystem(this.lang === 'zh' ? `代码索引完成: ${result.chunks} 个代码块` : `Code index built: ${result.chunks} chunks`);
+      }
+    } catch (err) {
+      console.error('[Index] Build error:', err);
+    }
+  }
+
+  private getAiConfigForApi(): { baseUrl: string; apiKey: string; model: string } {
+    const provider = (document.getElementById('ai-provider') as HTMLSelectElement)?.value || 'openai';
+    const model = (document.getElementById('ai-model') as HTMLInputElement)?.value || 'gpt-4o';
+    if (provider === 'anthropic') {
+      return { baseUrl: this.aiConfig.anthropicBase, apiKey: this.aiConfig.anthropicKey, model };
+    }
+    return { baseUrl: this.aiConfig.openaiBase, apiKey: this.aiConfig.openaiKey, model };
   }
 
   /* ========== 加载选中文件（展开完整路径树） ========== */

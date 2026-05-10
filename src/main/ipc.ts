@@ -7,6 +7,8 @@ import { setProjectRoot } from './ai-tools';
 import { loadConfig, saveConfig } from './config';
 import { storeMemories, recallMemories, listMemories, forgetMemory, clearMemories, getMemoryStats } from './memory-store';
 import { extractMemories, summarizeFileChange, categorizeChanges } from './memory-pipeline';
+import { buildIndex, searchIndex, getIndexStats, updateFileIndex } from './code-index';
+import { buildVectors, vectorSearch, getVectorStats } from './vector-store';
 
 let shellProcess: ChildProcess | null = null;
 let fsWatcher: fs.FSWatcher | null = null;
@@ -272,6 +274,60 @@ export function registerIpcHandlers(): void {
       return { ok: true, summary };
     } catch (err: any) {
       return { ok: false, summary: '', error: err.message };
+    }
+  });
+
+  // ==================== Code Index & Vector ====================
+  ipcMain.handle('index:build', async (_e, projectPath: string, config: any) => {
+    try {
+      const win = BrowserWindow.getFocusedWindow();
+      const profile = await buildIndex(projectPath, config, (cur, total) => {
+        win?.webContents.send('index:progress', { current: cur, total });
+      });
+      // Also build vectors from the indexed chunks
+      await buildVectors(projectPath, profile.chunks, config, (cur, total) => {
+        win?.webContents.send('vector:progress', { current: cur, total });
+      });
+      return { ok: true, chunks: profile.chunks.length };
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('index:search', async (_e, projectPath: string, query: string) => {
+    try {
+      const results = searchIndex(projectPath, query);
+      return { ok: true, results };
+    } catch (err: any) {
+      return { ok: false, results: [], error: err.message };
+    }
+  });
+
+  ipcMain.handle('index:stats', async (_e, projectPath: string) => {
+    try {
+      const indexStats = getIndexStats(projectPath);
+      const vecStats = getVectorStats(projectPath);
+      return { ok: true, index: indexStats, vector: vecStats };
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('index:updateFile', async (_e, projectPath: string, filePath: string, config: any) => {
+    try {
+      await updateFileIndex(projectPath, filePath, config);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('vector:search', async (_e, projectPath: string, query: string, config: any) => {
+    try {
+      const results = await vectorSearch(projectPath, query, config);
+      return { ok: true, results };
+    } catch (err: any) {
+      return { ok: false, results: [], error: err.message };
     }
   });
 

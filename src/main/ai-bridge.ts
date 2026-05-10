@@ -1,11 +1,15 @@
 import { net } from 'electron';
 import { getOpenAITools, getAnthropicTools, executeTool, getProjectRoot } from './ai-tools';
+import { searchIndex } from './code-index';
+import { vectorSearch } from './vector-store';
 
 interface AiConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
   thinking?: boolean;
+  maxTokens?: number;
+  reasoningEffort?: string;
 }
 
 interface ChatMessage {
@@ -149,7 +153,7 @@ async function runSubAgent(
         const res = await net.fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.apiKey}` },
-          body: JSON.stringify({ model: config.model, messages: conversation, tools, temperature: 0.3 }),
+          body: JSON.stringify({ model: config.model, messages: conversation, tools, temperature: 0.3, max_tokens: 384000 }),
           signal: controller.signal as any,
         });
         clearTimeout(timer);
@@ -204,6 +208,57 @@ async function openaiToolLoop(
   const conversation: any[] = messages.map(m => ({ ...m }));
   let goalChecks = 0;
 
+  // === 3-Layer Retrieval: inject relevant code context ===
+  const projectRoot = getProjectRoot();
+  if (projectRoot) {
+    try {
+      // Extract query from last user message
+      const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+      const queryText = typeof lastUserMsg?.content === 'string'
+        ? lastUserMsg.content
+        : Array.isArray(lastUserMsg?.content)
+          ? lastUserMsg.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join(' ')
+          : '';
+
+      if (queryText.length > 5) {
+        const contextParts: string[] = [];
+
+        // Layer 1: Code Index (keyword match)
+        const indexResults = searchIndex(projectRoot, queryText, 3);
+        if (indexResults.length > 0) {
+          contextParts.push('## Relevant Code (from project index):');
+          for (const r of indexResults) {
+            contextParts.push(`### ${r.filePath}:${r.startLine}-${r.endLine} — ${r.description}`);
+            contextParts.push('```\n' + r.code.slice(0, 1000) + '\n```');
+          }
+        }
+
+        // Layer 2: Vector Search (semantic match)
+        const vecResults = await vectorSearch(projectRoot, queryText, config, 3);
+        const vecNew = vecResults.filter(v => !indexResults.some(i => i.filePath === v.filePath && i.startLine === v.startLine));
+        if (vecNew.length > 0) {
+          contextParts.push('## Additional Context (semantic search):');
+          for (const v of vecNew) {
+            contextParts.push(`- ${v.filePath}:${v.startLine}-${v.endLine} — ${v.description} (score: ${v.score.toFixed(2)})`);
+          }
+        }
+
+        if (contextParts.length > 0) {
+          const contextMsg = {
+            role: 'system',
+            content: `[Auto-retrieved project context]\n${contextParts.join('\n')}`,
+          };
+          // Insert after the first system message (or at position 1)
+          const sysIdx = conversation.findIndex(m => m.role === 'system');
+          conversation.splice(sysIdx >= 0 ? sysIdx + 1 : 0, 0, contextMsg);
+          console.log(`[AI] Injected ${indexResults.length} index + ${vecNew.length} vector results`);
+        }
+      }
+    } catch (err) {
+      console.error('[AI] Context retrieval error (non-fatal):', err);
+    }
+  }
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (abortFlag) { onEvent({ type: 'done', text: '(Stopped by user)' }); return; }
     console.log(`[AI] OpenAI round ${round} -> ${url} model=${config.model}`);
@@ -226,7 +281,11 @@ async function openaiToolLoop(
           messages: conversation,
           tools,
           temperature: 0.3,
-          ...(config.thinking ? { thinking: { type: 'enabled' } } : {}),
+          max_tokens: config.maxTokens || 384000,
+          ...(config.thinking ? {
+            thinking: { type: 'enabled' },
+            reasoning_effort: config.reasoningEffort || 'max',
+          } : {}),
         }),
         signal: controller.signal as any,
       });

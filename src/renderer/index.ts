@@ -34,6 +34,13 @@ declare global {
       memoryIngest: (projectPath: string, config: any, messages: any[], sessionId: string) => Promise<{ ok: boolean; stored: number; error?: string }>;
       memoryCategorize: (config: any, changes: Array<{ id: string; label: string; filePath: string }>) => Promise<{ ok: boolean; mapping?: Record<string, string>; error?: string }>;
       memorySummarizeChange: (config: any, filePath: string, oldContent: string, newContent: string) => Promise<{ ok: boolean; summary?: string; error?: string }>;
+      indexBuild: (projectPath: string, config: any) => Promise<{ ok: boolean; chunks?: number; error?: string }>;
+      indexSearch: (projectPath: string, query: string) => Promise<{ ok: boolean; results?: any[]; error?: string }>;
+      indexStats: (projectPath: string) => Promise<{ ok: boolean; index?: any; vector?: any; error?: string }>;
+      indexUpdateFile: (projectPath: string, filePath: string, config: any) => Promise<{ ok: boolean; error?: string }>;
+      vectorSearch: (projectPath: string, query: string, config: any) => Promise<{ ok: boolean; results?: any[]; error?: string }>;
+      onIndexProgress: (cb: (data: { current: number; total: number }) => void) => void;
+      onVectorProgress: (cb: (data: { current: number; total: number }) => void) => void;
     };
   }
 }

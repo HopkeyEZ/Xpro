@@ -62,6 +62,15 @@ contextBridge.exposeInMainWorld('xpro', {
   memoryCategorize: (config: any, changes: Array<{ id: string; label: string; filePath: string }>) =>
     ipcRenderer.invoke('memory:categorizeChanges', config, changes),
 
+  // Code Index & Vector
+  indexBuild: (projectPath: string, config: any) => ipcRenderer.invoke('index:build', projectPath, config),
+  indexSearch: (projectPath: string, query: string) => ipcRenderer.invoke('index:search', projectPath, query),
+  indexStats: (projectPath: string) => ipcRenderer.invoke('index:stats', projectPath),
+  indexUpdateFile: (projectPath: string, filePath: string, config: any) => ipcRenderer.invoke('index:updateFile', projectPath, filePath, config),
+  vectorSearch: (projectPath: string, query: string, config: any) => ipcRenderer.invoke('vector:search', projectPath, query, config),
+  onIndexProgress: (cb: (data: any) => void) => ipcRenderer.on('index:progress', (_e, data) => cb(data)),
+  onVectorProgress: (cb: (data: any) => void) => ipcRenderer.on('vector:progress', (_e, data) => cb(data)),
+
   // App
   restart: () => ipcRenderer.invoke('app:restart'),
 });

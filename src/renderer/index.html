@@ -213,6 +213,15 @@
       <input id="api-key" type="password" placeholder="sk-..." spellcheck="false" />
       <label id="lbl-model">Model</label>
       <input id="profile-model" type="text" placeholder="e.g. deepseek-v4-flash, gpt-4o" spellcheck="false" />
+      <label id="lbl-max-tokens">Max Tokens</label>
+      <input id="profile-max-tokens" type="number" placeholder="384000" value="384000" spellcheck="false" />
+      <label id="lbl-reasoning-effort">Reasoning Effort</label>
+      <select id="profile-reasoning-effort" style="width:100%;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:#ccc;font-size:12px;">
+        <option value="max">Max (推荐)</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
       <div id="thinking-toggle" style="display:flex;align-items:center;gap:8px;margin:10px 0;">
         <label id="lbl-thinking" for="chk-thinking" style="font-size:12px;color:#ccc;cursor:pointer;">Thinking Mode</label>
         <input id="chk-thinking" type="checkbox" style="cursor:pointer;" />
