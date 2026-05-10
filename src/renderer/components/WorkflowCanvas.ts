@@ -67,6 +67,8 @@ export class WorkflowCanvas {
     anthropicKey: '', anthropicBase: 'https://api.anthropic.com',
     thinking: false,
   };
+  private apiProfiles: Array<{ name: string; baseUrl: string; apiKey: string; model: string; provider: string }> = [];
+  private activeProfile: string = '';
   private layoutDir: 'h' | 'v' = 'h';
   private autoCatTimer: number | null = null;
   private annotating = false;
@@ -84,9 +86,14 @@ export class WorkflowCanvas {
       cmdPlaceholder: 'Type a command...',
       aiTitle: 'AI Assistant', settings: 'Settings', aiPlaceholder: 'Ask AI to help with your code... (Enter to send, Shift+Enter for newline)',
       save: 'Save', modified: 'Modified',
-      apiSettings: 'API Settings', savBtn: 'Save', cancel: 'Cancel',
+      apiSettings: 'API Settings', savBtn: 'Apply', cancel: 'Cancel',
+      savedProfiles: 'Saved Profiles', noProfiles: 'No saved profiles',
+      profileName: 'Profile Name', profileNamePh: 'e.g. DeepSeek, OpenAI, Claude...',
+      baseUrl: 'Base URL', apiKey: 'API Key', model: 'Model',
+      modelPh: 'e.g. deepseek-v4-flash, gpt-4o', thinkingMode: 'Thinking Mode',
+      saveProfile: 'Save Profile', use: 'Use', delete: 'Delete',
       ctxOpen: 'Open File', ctxConn: 'Show Connections', ctxCollapse: 'Collapse Children',
-      annotate: 'Edit', annotateActive: 'Drawing...',
+      annotate: 'Edit', annotateActive: 'Drawing...', restart: 'Restart',
     },
     zh: {
       openFolder: '打开文件夹', openFiles: '打开文件', autoLayout: '自动布局', fitView: '适应视图',
@@ -95,9 +102,14 @@ export class WorkflowCanvas {
       cmdPlaceholder: '输入命令...',
       aiTitle: 'AI 助手', settings: '设置', aiPlaceholder: '让 AI 帮你写代码... (Enter 发送, Shift+Enter 换行)',
       save: '保存', modified: '已修改',
-      apiSettings: 'API 设置', savBtn: '保存', cancel: '取消',
+      apiSettings: 'API 设置', savBtn: '应用', cancel: '取消',
+      savedProfiles: '已保存配置', noProfiles: '暂无保存的配置',
+      profileName: '配置名称', profileNamePh: '如 DeepSeek、OpenAI、Claude...',
+      baseUrl: '接口地址', apiKey: '密钥', model: '模型',
+      modelPh: '如 deepseek-v4-flash、gpt-4o', thinkingMode: '思考模式',
+      saveProfile: '保存配置', use: '使用', delete: '删除',
       ctxOpen: '打开文件', ctxConn: '显示连接', ctxCollapse: '折叠子节点',
-      annotate: '标注编辑', annotateActive: '绘制中...',
+      annotate: '标注编辑', annotateActive: '绘制中...', restart: '重启',
     },
   };
 
@@ -733,20 +745,97 @@ export class WorkflowCanvas {
     const settingsTitle = document.getElementById('ai-settings-title')!;
 
     const thinkingChk = document.getElementById('chk-thinking') as HTMLInputElement;
+    const profileNameInput = document.getElementById('profile-name') as HTMLInputElement;
+    const profileList = document.getElementById('profile-list')!;
+
+    const renderProfiles = () => {
+      profileList.innerHTML = '';
+      if (this.apiProfiles.length === 0) {
+        profileList.innerHTML = `<div style="color:#666;font-size:11px;padding:6px;text-align:center;">${this.t('noProfiles')}</div>`;
+        return;
+      }
+      for (const p of this.apiProfiles) {
+        const row = document.createElement('div');
+        const isActive = this.activeProfile === p.name;
+        row.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-radius:5px;margin-bottom:3px;cursor:pointer;font-size:11px;border:1px solid ${isActive ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.06)'};background:${isActive ? 'rgba(96,165,250,0.1)' : 'rgba(255,255,255,0.02)'};`;
+        const left = document.createElement('div');
+        left.style.cssText = 'display:flex;flex-direction:column;gap:1px;flex:1;';
+        const nameEl = document.createElement('span');
+        nameEl.style.cssText = `font-weight:600;color:${isActive ? '#60a5fa' : '#ccc'};`;
+        nameEl.textContent = p.name;
+        const infoEl = document.createElement('span');
+        infoEl.style.cssText = 'color:#666;font-size:10px;';
+        infoEl.textContent = `${p.model} · ${p.baseUrl.replace(/https?:\/\//, '').slice(0, 30)}`;
+        left.appendChild(nameEl);
+        left.appendChild(infoEl);
+        row.appendChild(left);
+
+        const btnGroup = document.createElement('div');
+        btnGroup.style.cssText = 'display:flex;gap:4px;';
+        const useBtn = document.createElement('button');
+        useBtn.textContent = isActive ? '✓' : this.t('use');
+        useBtn.style.cssText = `font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer;border:1px solid ${isActive ? 'rgba(34,197,94,0.3)' : 'rgba(96,165,250,0.3)'};background:${isActive ? 'rgba(34,197,94,0.1)' : 'rgba(96,165,250,0.1)'};color:${isActive ? '#4ade80' : '#60a5fa'};`;
+        useBtn.onclick = (e) => {
+          e.stopPropagation();
+          this.applyProfile(p);
+          profileNameInput.value = p.name;
+          apiBaseInput.value = p.baseUrl;
+          apiKeyInput.value = p.apiKey;
+          (document.getElementById('ai-provider') as HTMLSelectElement).value = p.provider || 'openai';
+          renderProfiles();
+        };
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '✕';
+        delBtn.style.cssText = 'font-size:10px;padding:2px 6px;border-radius:4px;cursor:pointer;border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.1);color:#f87171;';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          this.apiProfiles = this.apiProfiles.filter(x => x.name !== p.name);
+          if (this.activeProfile === p.name) this.activeProfile = '';
+          this.saveAiConfig();
+          renderProfiles();
+        };
+        btnGroup.appendChild(useBtn);
+        btnGroup.appendChild(delBtn);
+        row.appendChild(btnGroup);
+        profileList.appendChild(row);
+      }
+    };
+
     document.getElementById('btn-ai-settings')?.addEventListener('click', () => {
       const provider = (document.getElementById('ai-provider') as HTMLSelectElement).value;
       const isAnt = provider === 'anthropic';
-      settingsTitle.textContent = isAnt ? 'Anthropic Settings' : 'OpenAI Settings';
       apiBaseInput.value = isAnt ? this.aiConfig.anthropicBase : this.aiConfig.openaiBase;
       apiBaseInput.placeholder = isAnt ? 'https://api.anthropic.com' : 'https://api.openai.com/v1';
       apiKeyInput.value = isAnt ? this.aiConfig.anthropicKey : this.aiConfig.openaiKey;
       apiKeyInput.placeholder = isAnt ? 'sk-ant-...' : 'sk-...';
+      profileNameInput.value = this.activeProfile;
       thinkingChk.checked = this.aiConfig.thinking;
+      renderProfiles();
       modal.classList.remove('hidden');
     });
     document.getElementById('btn-close-ai-settings')?.addEventListener('click', () => {
       modal.classList.add('hidden');
     });
+    // Save Profile button
+    document.getElementById('btn-save-profile')?.addEventListener('click', () => {
+      const name = profileNameInput.value.trim();
+      if (!name) { profileNameInput.focus(); return; }
+      const provider = (document.getElementById('ai-provider') as HTMLSelectElement).value;
+      const profile = {
+        name,
+        baseUrl: apiBaseInput.value.trim(),
+        apiKey: apiKeyInput.value.trim(),
+        model: (document.getElementById('ai-model') as HTMLInputElement).value.trim(),
+        provider,
+      };
+      const idx = this.apiProfiles.findIndex(p => p.name === name);
+      if (idx >= 0) { this.apiProfiles[idx] = profile; } else { this.apiProfiles.push(profile); }
+      this.applyProfile(profile);
+      this.saveAiConfig();
+      renderProfiles();
+      this.aiAddSystem(`Profile "${name}" saved.`);
+    });
+    // Apply button (use current fields without saving profile)
     document.getElementById('btn-save-ai-settings')?.addEventListener('click', () => {
       const provider = (document.getElementById('ai-provider') as HTMLSelectElement).value;
       const key = apiKeyInput.value.trim();
@@ -761,7 +850,7 @@ export class WorkflowCanvas {
       this.aiConfig.thinking = thinkingChk.checked;
       modal.classList.add('hidden');
       this.saveAiConfig();
-      this.aiAddSystem(`${provider === 'anthropic' ? 'Anthropic' : 'OpenAI'} settings saved. Thinking: ${this.aiConfig.thinking ? 'ON' : 'OFF'}`);
+      this.aiAddSystem(`Settings applied. Thinking: ${this.aiConfig.thinking ? 'ON' : 'OFF'}`);
     });
 
     // AI send / stop
@@ -928,48 +1017,57 @@ export class WorkflowCanvas {
 
   private applyLang() {
     const t = this.t.bind(this);
-    const btn = document.getElementById('btn-lang')!;
-    btn.textContent = this.lang === 'en' ? 'EN / 中' : '中 / EN';
+    const s = (id: string, text: string) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+    const q = (sel: string, text: string) => { const el = document.querySelector(sel); if (el) el.textContent = text; };
+    const ph = (id: string, val: string) => { const el = document.getElementById(id) as HTMLInputElement | null; if (el) el.placeholder = val; };
 
-    // Toolbar buttons
-    document.querySelector('#btn-open-folder span')!.textContent = t('openFolder');
-    document.querySelector('#btn-open-files span')!.textContent = t('openFiles');
-    document.querySelector('#btn-auto-layout span')!.textContent = t('autoLayout');
-    document.querySelector('#btn-fit-view span')!.textContent = t('fitView');
+    s('btn-lang', this.lang === 'en' ? 'EN / 中' : '中 / EN');
 
-    // Folder path placeholder
-    const fp = document.getElementById('folder-path')!;
-    if (!this.rootFolder) fp.textContent = t('noFolder');
+    // Toolbar
+    q('#btn-open-folder span', t('openFolder'));
+    q('#btn-open-files span', t('openFiles'));
+    q('#btn-auto-layout span', t('autoLayout'));
+    q('#btn-fit-view span', t('fitView'));
+
+    // Folder path
+    if (!this.rootFolder) s('folder-path', t('noFolder'));
 
     // Node count
-    const nc = document.getElementById('node-count')!;
     const count = this.nodes.size;
-    nc.textContent = this.lang === 'zh' ? `${count} ${t('nodes')}` : `${count} nodes`;
+    s('node-count', this.lang === 'zh' ? `${count} ${t('nodes')}` : `${count} nodes`);
 
     // Search
-    (document.getElementById('search-input') as HTMLInputElement).placeholder = t('search');
-    const filterAll = document.querySelector('.filter-btn[data-filter="all"]');
-    if (filterAll) filterAll.textContent = t('all');
-    const filterDir = document.querySelector('.filter-btn[data-filter="dir"]');
-    if (filterDir) filterDir.textContent = t('folders');
+    ph('search-input', t('search'));
+    q('.filter-btn[data-filter="all"]', t('all'));
+    q('.filter-btn[data-filter="dir"]', t('folders'));
 
     // Terminal
-    document.getElementById('bottom-panel-title')!.textContent = t('terminal');
-    document.getElementById('btn-clear-terminal')!.textContent = t('clear');
+    s('bottom-panel-title', t('terminal'));
+    s('btn-clear-terminal', t('clear'));
 
     // AI panel
-    document.getElementById('ai-panel-title')!.textContent = t('aiTitle');
-    document.getElementById('btn-ai-settings')!.textContent = t('settings');
-    document.getElementById('btn-clear-ai')!.textContent = t('clear');
-    (document.getElementById('ai-input') as HTMLTextAreaElement).placeholder = t('aiPlaceholder');
+    s('ai-panel-title', t('aiTitle'));
+    s('btn-ai-settings', t('settings'));
+    s('btn-clear-ai', t('clear'));
+    ph('ai-input', t('aiPlaceholder'));
 
     // Detail panel
-    document.getElementById('detail-save')!.textContent = t('save');
+    s('detail-save', t('save'));
+
+    // Restart button
+    s('btn-restart', t('restart'));
 
     // Settings modal
-    document.querySelector('#ai-settings-content h3')!.textContent = t('apiSettings');
-    document.getElementById('btn-save-ai-settings')!.textContent = t('savBtn');
-    document.getElementById('btn-close-ai-settings')!.textContent = t('cancel');
+    s('ai-settings-title', t('apiSettings'));
+    s('lbl-saved-profiles', t('savedProfiles'));
+    s('lbl-profile-name', t('profileName'));
+    s('lbl-base-url', t('baseUrl'));
+    s('lbl-api-key', t('apiKey'));
+    s('lbl-thinking', t('thinkingMode'));
+    s('btn-save-profile', t('saveProfile'));
+    s('btn-save-ai-settings', t('savBtn'));
+    s('btn-close-ai-settings', t('cancel'));
+    ph('profile-name', t('profileNamePh'));
 
     // Context menu
     const ctxItems = document.querySelectorAll('.ctx-item');
@@ -1559,6 +1657,14 @@ export class WorkflowCanvas {
       if (cfg?.ai) {
         this.aiConfig = { ...this.aiConfig, ...cfg.ai };
       }
+      if (cfg?.apiProfiles) {
+        this.apiProfiles = cfg.apiProfiles;
+      }
+      if (cfg?.activeProfile) {
+        this.activeProfile = cfg.activeProfile;
+        const p = this.apiProfiles.find(x => x.name === this.activeProfile);
+        if (p) this.applyProfile(p, true);
+      }
     } catch {}
   }
 
@@ -1566,8 +1672,28 @@ export class WorkflowCanvas {
     try {
       const cfg = await window.xpro.loadConfig() || {};
       cfg.ai = this.aiConfig;
+      cfg.apiProfiles = this.apiProfiles;
+      cfg.activeProfile = this.activeProfile;
       await window.xpro.saveConfig(cfg);
     } catch {}
+  }
+
+  private applyProfile(p: { name: string; baseUrl: string; apiKey: string; model: string; provider: string }, silent?: boolean) {
+    this.activeProfile = p.name;
+    const isAnt = p.provider === 'anthropic';
+    if (isAnt) {
+      this.aiConfig.anthropicKey = p.apiKey;
+      this.aiConfig.anthropicBase = p.baseUrl || 'https://api.anthropic.com';
+    } else {
+      this.aiConfig.openaiKey = p.apiKey;
+      this.aiConfig.openaiBase = p.baseUrl || 'https://api.openai.com/v1';
+    }
+    // Update toolbar selectors
+    const providerSel = document.getElementById('ai-provider') as HTMLSelectElement;
+    const modelInput = document.getElementById('ai-model') as HTMLInputElement;
+    if (providerSel) providerSel.value = p.provider || 'openai';
+    if (modelInput && p.model) modelInput.value = p.model;
+    if (!silent) this.aiAddSystem(`Switched to "${p.name}" (${p.model})`);
   }
 
   private aiAddMsg(role: string, content: string) {

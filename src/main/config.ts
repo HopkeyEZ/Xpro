@@ -2,6 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
+export interface ApiProfile {
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  provider: 'openai' | 'anthropic' | '';
+}
+
 export interface XproConfig {
   ai: {
     provider: 'openai' | 'anthropic' | '';
@@ -9,6 +17,8 @@ export interface XproConfig {
     apiKey: string;
     model: string;
   };
+  apiProfiles?: ApiProfile[];
+  activeProfile?: string;
   editor: {
     fontSize: number;
     tabSize: number;
