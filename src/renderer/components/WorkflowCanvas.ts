@@ -746,6 +746,7 @@ export class WorkflowCanvas {
 
     const thinkingChk = document.getElementById('chk-thinking') as HTMLInputElement;
     const profileNameInput = document.getElementById('profile-name') as HTMLInputElement;
+    const profileModelInput = document.getElementById('profile-model') as HTMLInputElement;
     const profileList = document.getElementById('profile-list')!;
 
     const renderProfiles = () => {
@@ -781,6 +782,7 @@ export class WorkflowCanvas {
           profileNameInput.value = p.name;
           apiBaseInput.value = p.baseUrl;
           apiKeyInput.value = p.apiKey;
+          profileModelInput.value = p.model;
           (document.getElementById('ai-provider') as HTMLSelectElement).value = p.provider || 'openai';
           renderProfiles();
         };
@@ -809,6 +811,7 @@ export class WorkflowCanvas {
       apiKeyInput.value = isAnt ? this.aiConfig.anthropicKey : this.aiConfig.openaiKey;
       apiKeyInput.placeholder = isAnt ? 'sk-ant-...' : 'sk-...';
       profileNameInput.value = this.activeProfile;
+      profileModelInput.value = (document.getElementById('ai-model') as HTMLInputElement).value;
       thinkingChk.checked = this.aiConfig.thinking;
       renderProfiles();
       modal.classList.remove('hidden');
@@ -825,7 +828,7 @@ export class WorkflowCanvas {
         name,
         baseUrl: apiBaseInput.value.trim(),
         apiKey: apiKeyInput.value.trim(),
-        model: (document.getElementById('ai-model') as HTMLInputElement).value.trim(),
+        model: profileModelInput.value.trim(),
         provider,
       };
       const idx = this.apiProfiles.findIndex(p => p.name === name);
@@ -847,6 +850,8 @@ export class WorkflowCanvas {
         this.aiConfig.openaiKey = key;
         this.aiConfig.openaiBase = base || 'https://api.openai.com/v1';
       }
+      const model = profileModelInput.value.trim();
+      if (model) (document.getElementById('ai-model') as HTMLInputElement).value = model;
       this.aiConfig.thinking = thinkingChk.checked;
       modal.classList.add('hidden');
       this.saveAiConfig();
@@ -1063,7 +1068,9 @@ export class WorkflowCanvas {
     s('lbl-profile-name', t('profileName'));
     s('lbl-base-url', t('baseUrl'));
     s('lbl-api-key', t('apiKey'));
+    s('lbl-model', t('model'));
     s('lbl-thinking', t('thinkingMode'));
+    ph('profile-model', t('modelPh'));
     s('btn-save-profile', t('saveProfile'));
     s('btn-save-ai-settings', t('savBtn'));
     s('btn-close-ai-settings', t('cancel'));
