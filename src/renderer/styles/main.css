@@ -1316,6 +1316,36 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   border-color: var(--accent);
 }
 
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 38px;
+  margin-top: 10px;
+  padding: 0 2px;
+  box-sizing: border-box;
+}
+
+#ai-settings-content .settings-toggle-row label {
+  flex: 1;
+  margin: 0;
+  color: var(--node-text);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+#ai-settings-content .settings-toggle-row input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
 #ai-settings-actions {
   display: flex;
   gap: 8px;

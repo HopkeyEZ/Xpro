@@ -24,7 +24,7 @@ export function createMainWindow(): BrowserWindow {
     },
   });
 
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' && process.env.XPRO_FORCE_PRODUCTION !== '1') {
     mainWindow.loadURL('http://localhost:9080');
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {

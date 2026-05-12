@@ -332,6 +332,8 @@ export function registerIpcHandlers(): void {
   });
 
   ipcMain.handle('app:restart', () => {
+    process.env.XPRO_FORCE_PRODUCTION = '1';
+    delete process.env.NODE_ENV;
     app.relaunch();
     app.exit(0);
   });

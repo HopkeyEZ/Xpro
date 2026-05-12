@@ -10,6 +10,7 @@ interface AiConfig {
   thinking?: boolean;
   maxTokens?: number;
   reasoningEffort?: string;
+  streaming?: boolean;
 }
 
 interface ChatMessage {
@@ -269,32 +270,124 @@ async function openaiToolLoop(
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     let resJson: any;
+    let textWasStreamed = false;
     try {
-      const res = await net.fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages: conversation,
-          tools,
-          temperature: 0.3,
-          max_tokens: config.maxTokens || 384000,
-          ...(config.thinking ? {
-            thinking: { type: 'enabled' },
-            reasoning_effort: config.reasoningEffort || 'max',
-          } : {}),
-        }),
-        signal: controller.signal as any,
-      });
-      clearTimeout(timer);
+      if (config.streaming !== false) {
+        // ── Streaming path ──
+        const res = await net.fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages: conversation,
+            tools,
+            temperature: 0.3,
+            max_tokens: config.maxTokens || 384000,
+            stream: true,
+            stream_options: { include_usage: true },
+            ...(config.thinking ? {
+              thinking: { type: 'enabled' },
+              reasoning_effort: config.reasoningEffort || 'max',
+            } : {}),
+          }),
+          signal: controller.signal as any,
+        });
+        clearTimeout(timer);
 
-      const text = await res.text();
-      console.log(`[AI] OpenAI status=${res.status} body=${text.slice(0, 300)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
-      resJson = JSON.parse(text);
+        if (!res.ok) {
+          const errText = await res.text();
+          console.log(`[AI] OpenAI status=${res.status} body=${errText.slice(0, 300)}`);
+          throw new Error(`HTTP ${res.status}: ${errText.slice(0, 300)}`);
+        }
+
+        const reader = (res.body as any).getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = '';
+        let accText = '';
+        let accReasoning = false;
+        const accToolCalls: Record<number, { id: string; name: string; arguments: string }> = {};
+        let finalUsage: any = null;
+        let finalFinishReason: string | null = null;
+
+        streamLoop: while (true) {
+          if (abortFlag) break;
+          let chunkData: { done: boolean; value?: Uint8Array };
+          try { chunkData = await reader.read(); } catch { break; }
+          if (chunkData.done) break;
+          sseBuffer += decoder.decode(chunkData.value, { stream: true });
+          const lines = sseBuffer.split('\n');
+          sseBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6);
+            if (data === '[DONE]') break streamLoop;
+            let parsed: any;
+            try { parsed = JSON.parse(data); } catch { continue; }
+            if (parsed.usage) finalUsage = parsed.usage;
+            const choice = parsed.choices?.[0];
+            if (!choice) continue;
+            if (choice.finish_reason) finalFinishReason = choice.finish_reason;
+            const delta = choice.delta;
+            if (!delta) continue;
+            if (delta.reasoning_content && !accReasoning) {
+              accReasoning = true;
+              onEvent({ type: 'thinking' });
+            }
+            if (delta.content) {
+              accText += delta.content;
+              textWasStreamed = true;
+              onEvent({ type: 'text', text: delta.content });
+            }
+            if (delta.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx: number = tc.index ?? 0;
+                if (!accToolCalls[idx]) accToolCalls[idx] = { id: '', name: '', arguments: '' };
+                if (tc.id) accToolCalls[idx].id = tc.id;
+                if (tc.function?.name) accToolCalls[idx].name += tc.function.name;
+                if (tc.function?.arguments) accToolCalls[idx].arguments += tc.function.arguments;
+              }
+            }
+          }
+        }
+
+        const assembledToolCalls = Object.entries(accToolCalls)
+          .sort(([a], [b]) => Number(a) - Number(b))
+          .map(([, tc]) => ({ id: tc.id, type: 'function' as const, function: { name: tc.name, arguments: tc.arguments } }));
+        console.log(`[AI] OpenAI stream done: textLen=${accText.length} tools=${assembledToolCalls.length} finish=${finalFinishReason}`);
+        resJson = {
+          choices: [{ message: { role: 'assistant', content: accText || null, tool_calls: assembledToolCalls.length > 0 ? assembledToolCalls : undefined }, finish_reason: finalFinishReason }],
+          usage: finalUsage,
+        };
+      } else {
+        // ── Non-streaming path ──
+        const res = await net.fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: config.model,
+            messages: conversation,
+            tools,
+            temperature: 0.3,
+            max_tokens: config.maxTokens || 384000,
+            ...(config.thinking ? {
+              thinking: { type: 'enabled' },
+              reasoning_effort: config.reasoningEffort || 'max',
+            } : {}),
+          }),
+          signal: controller.signal as any,
+        });
+        clearTimeout(timer);
+        const text = await res.text();
+        console.log(`[AI] OpenAI status=${res.status} body=${text.slice(0, 300)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
+        resJson = JSON.parse(text);
+      }
     } catch (err: any) {
       clearTimeout(timer);
       if (abortFlag) {
@@ -326,8 +419,8 @@ async function openaiToolLoop(
 
     // Check for tool calls
     if (msg.tool_calls && msg.tool_calls.length > 0) {
-      // Emit any text content alongside tool calls
-      if (msg.content) {
+      // Emit any text content alongside tool calls (skip if already streamed)
+      if (msg.content && !textWasStreamed) {
         onEvent({ type: 'text', text: msg.content });
       }
       // Add assistant message (with tool_calls) to conversation
@@ -410,8 +503,8 @@ async function openaiToolLoop(
       return;
     }
 
-    // First text response: emit it, then inject goal check
-    onEvent({ type: 'text', text: responseText });
+    // First text response: emit it, then inject goal check (skip if already streamed)
+    if (!textWasStreamed) onEvent({ type: 'text', text: responseText });
     const textAsstMsg: any = { role: 'assistant', content: responseText };
     if (msg.reasoning_content) textAsstMsg.reasoning_content = msg.reasoning_content;
     conversation.push(textAsstMsg);
@@ -457,29 +550,126 @@ async function anthropicToolLoop(
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
     let resJson: any;
+    let textWasStreamed = false;
     try {
-      const res = await net.fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': config.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: config.model,
-          max_tokens: 4096,
-          system: systemMsg,
-          messages: conversation,
-          tools,
-        }),
-        signal: controller.signal as any,
-      });
-      clearTimeout(timer);
+      if (config.streaming !== false) {
+        // ── Streaming path ──
+        const res = await net.fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': config.apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: config.model,
+            max_tokens: 4096,
+            system: systemMsg,
+            messages: conversation,
+            tools,
+            stream: true,
+          }),
+          signal: controller.signal as any,
+        });
+        clearTimeout(timer);
 
-      const text = await res.text();
-      console.log(`[AI] Anthropic status=${res.status} body=${text.slice(0, 300)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
-      resJson = JSON.parse(text);
+        if (!res.ok) {
+          const errText = await res.text();
+          console.log(`[AI] Anthropic status=${res.status} body=${errText.slice(0, 300)}`);
+          throw new Error(`HTTP ${res.status}: ${errText.slice(0, 300)}`);
+        }
+
+        const reader = (res.body as any).getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = '';
+        let accText = '';
+        const contentBlocks: Record<number, { type: string; id?: string; name?: string; inputJson: string }> = {};
+        let finalUsage: any = null;
+        let stopReason: string | null = null;
+
+        streamLoop: while (true) {
+          if (abortFlag) break;
+          let chunkData: { done: boolean; value?: Uint8Array };
+          try { chunkData = await reader.read(); } catch { break; }
+          if (chunkData.done) break;
+          sseBuffer += decoder.decode(chunkData.value, { stream: true });
+          const lines = sseBuffer.split('\n');
+          sseBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6);
+            let evt: any;
+            try { evt = JSON.parse(data); } catch { continue; }
+            switch (evt.type) {
+              case 'message_start':
+                if (evt.message?.usage) finalUsage = { ...finalUsage, ...evt.message.usage };
+                break;
+              case 'content_block_start':
+                contentBlocks[evt.index] = { type: evt.content_block.type, inputJson: '' };
+                if (evt.content_block.type === 'tool_use') {
+                  contentBlocks[evt.index].id = evt.content_block.id;
+                  contentBlocks[evt.index].name = evt.content_block.name;
+                }
+                break;
+              case 'content_block_delta':
+                if (evt.delta.type === 'text_delta' && evt.delta.text) {
+                  accText += evt.delta.text;
+                  textWasStreamed = true;
+                  onEvent({ type: 'text', text: evt.delta.text });
+                } else if (evt.delta.type === 'input_json_delta') {
+                  if (contentBlocks[evt.index]) contentBlocks[evt.index].inputJson += evt.delta.partial_json;
+                }
+                break;
+              case 'message_delta':
+                if (evt.delta?.stop_reason) stopReason = evt.delta.stop_reason;
+                if (evt.usage) finalUsage = { ...finalUsage, ...evt.usage };
+                break;
+              case 'message_stop':
+                break streamLoop;
+            }
+          }
+        }
+
+        const assembledContent: any[] = [];
+        if (accText) assembledContent.push({ type: 'text', text: accText });
+        for (const block of Object.values(contentBlocks)) {
+          if (block.type === 'tool_use') {
+            let inputObj: any = {};
+            try { inputObj = JSON.parse(block.inputJson || '{}'); } catch {}
+            assembledContent.push({ type: 'tool_use', id: block.id, name: block.name, input: inputObj });
+          }
+        }
+        const hasTools = assembledContent.some((b: any) => b.type === 'tool_use');
+        console.log(`[AI] Anthropic stream done: textLen=${accText.length} toolBlocks=${assembledContent.filter((b: any) => b.type === 'tool_use').length} stopReason=${stopReason}`);
+        resJson = {
+          content: assembledContent,
+          stop_reason: stopReason || (hasTools ? 'tool_use' : 'end_turn'),
+          usage: finalUsage,
+        };
+      } else {
+        // ── Non-streaming path ──
+        const res = await net.fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': config.apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: config.model,
+            max_tokens: 4096,
+            system: systemMsg,
+            messages: conversation,
+            tools,
+          }),
+          signal: controller.signal as any,
+        });
+        clearTimeout(timer);
+        const text = await res.text();
+        console.log(`[AI] Anthropic status=${res.status} body=${text.slice(0, 300)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
+        resJson = JSON.parse(text);
+      }
     } catch (err: any) {
       clearTimeout(timer);
       if (abortFlag) {
@@ -514,8 +704,8 @@ async function anthropicToolLoop(
 
     // Check for tool calls
     if (stopReason === 'tool_use' || toolUseBlocks.length > 0) {
-      // Emit any text content alongside tool calls
-      if (textParts.length > 0) {
+      // Emit any text content alongside tool calls (skip if already streamed)
+      if (textParts.length > 0 && !textWasStreamed) {
         onEvent({ type: 'text', text: textParts.join('\n') });
       }
       // Add assistant message to conversation
@@ -586,8 +776,8 @@ async function anthropicToolLoop(
       return;
     }
 
-    // Emit text, then inject goal check
-    onEvent({ type: 'text', text: responseText });
+    // Emit text, then inject goal check (skip if already streamed)
+    if (!textWasStreamed) onEvent({ type: 'text', text: responseText });
     conversation.push({ role: 'assistant', content: [{ type: 'text', text: responseText }] });
     conversation.push({ role: 'user', content: GOAL_CHECK_PROMPT });
     goalChecks++;
@@ -625,7 +815,7 @@ export async function aiChat(
     let fullText = '';
     aiChatWithTools(provider, config, messages, (evt) => {
       if (evt.type === 'text') fullText += (evt.text || '');
-      else if (evt.type === 'done') resolve({ ok: true, data: fullText + (evt.text || '') });
+      else if (evt.type === 'done') resolve({ ok: true, data: fullText || (evt.text || '') });
       else if (evt.type === 'error') resolve({ ok: false, error: evt.error });
     });
   });
