@@ -3,7 +3,7 @@ import fsp from 'fs/promises';
 import path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 
 const execAsync = promisify(exec);
 
@@ -24,6 +24,34 @@ function sendToTerminal(text: string) {
   } catch (err) {
     console.error('[sendToTerminal] Error:', err);
   }
+}
+
+interface FileApprovalRequest {
+  requestId: string;
+  toolName: string;
+  filePath: string;
+  oldContent: string;
+  newContent: string;
+}
+
+const pendingFileApprovals = new Map<string, (approved: boolean) => void>();
+
+ipcMain.on('ai:fileApprovalResponse', (_event, requestId: string, approved: boolean) => {
+  const resolve = pendingFileApprovals.get(requestId);
+  if (!resolve) return;
+  pendingFileApprovals.delete(requestId);
+  resolve(approved);
+});
+
+function requestFileApproval(request: FileApprovalRequest): Promise<boolean> {
+  const wins = BrowserWindow.getAllWindows();
+  const win = wins.find(w => !w.isDestroyed());
+  if (!win) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    pendingFileApprovals.set(request.requestId, resolve);
+    win.webContents.send('ai:fileApprovalRequested', request);
+  });
 }
 
 // ==================== Background Process Tracking ====================
@@ -326,11 +354,11 @@ async function execReadFile(filePath: string): Promise<{ ok: boolean; result: st
 }
 
 /** Notify renderer of a file change (for checkpoint + lint integration) */
-function notifyFileChange(toolName: string, filePath: string, oldContent: string, newContent: string) {
+function notifyFileChange(toolName: string, filePath: string, oldContent: string, newContent: string, preApproved = false) {
   try {
     const wins = BrowserWindow.getAllWindows();
     if (wins.length > 0 && !wins[0].isDestroyed()) {
-      wins[0].webContents.send('ai:fileChanged', { toolName, filePath, oldContent, newContent });
+      wins[0].webContents.send('ai:fileChanged', { toolName, filePath, oldContent, newContent, preApproved });
     }
   } catch (e) {
     console.warn('[notifyFileChange]', e);
@@ -345,10 +373,21 @@ async function execWriteFile(filePath: string, content: string): Promise<{ ok: b
   let oldContent = '';
   try { oldContent = await fsp.readFile(filePath, 'utf-8'); } catch { /* new file */ }
 
+  const approved = await requestFileApproval({
+    requestId: `approval_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    toolName: 'write_file',
+    filePath,
+    oldContent,
+    newContent: content,
+  });
+  if (!approved) {
+    return { ok: false, result: `File write rejected by user before changes were written: ${filePath}` };
+  }
+
   await fsp.mkdir(path.dirname(filePath), { recursive: true });
   await fsp.writeFile(filePath, content, 'utf-8');
 
-  notifyFileChange('write_file', filePath, oldContent, content);
+  notifyFileChange('write_file', filePath, oldContent, content, true);
   return { ok: true, result: `File written: ${filePath} (${content.length} chars)` };
 }
 
@@ -367,9 +406,20 @@ async function execEditFile(filePath: string, oldText: string, newText: string):
   }
 
   const updated = content.replace(oldText, newText);
+  const approved = await requestFileApproval({
+    requestId: `approval_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    toolName: 'edit_file',
+    filePath,
+    oldContent: content,
+    newContent: updated,
+  });
+  if (!approved) {
+    return { ok: false, result: `File edit rejected by user before changes were written: ${filePath}` };
+  }
+
   await fsp.writeFile(filePath, updated, 'utf-8');
 
-  notifyFileChange('edit_file', filePath, content, updated);
+  notifyFileChange('edit_file', filePath, content, updated, true);
   return { ok: true, result: `Edit applied: ${filePath} (replaced ${oldText.length} chars → ${newText.length} chars)` };
 }
 

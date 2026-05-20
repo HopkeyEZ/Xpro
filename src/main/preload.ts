@@ -46,8 +46,12 @@ contextBridge.exposeInMainWorld('xpro', {
   nativeSearch: (dir: string, pattern: string) => ipcRenderer.invoke('native:search', dir, pattern),
 
   // AI file change events (for checkpoint + lint)
-  onAiFileChanged: (cb: (data: { toolName: string; filePath: string; oldContent: string; newContent: string }) => void) =>
+  onAiFileChanged: (cb: (data: { toolName: string; filePath: string; oldContent: string; newContent: string; preApproved?: boolean }) => void) =>
     ipcRenderer.on('ai:fileChanged', (_e, data) => cb(data)),
+  onAiFileApprovalRequested: (cb: (data: { requestId: string; toolName: string; filePath: string; oldContent: string; newContent: string }) => void) =>
+    ipcRenderer.on('ai:fileApprovalRequested', (_e, data) => cb(data)),
+  respondAiFileApproval: (requestId: string, approved: boolean) =>
+    ipcRenderer.send('ai:fileApprovalResponse', requestId, approved),
 
   // Memory
   memoryRecall: (projectPath: string, query: string) => ipcRenderer.invoke('memory:recall', projectPath, query),

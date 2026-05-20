@@ -960,8 +960,25 @@ export class WorkflowCanvas {
       if (this.aiEventHandler) this.aiEventHandler(rid, evt);
     });
 
+    // Register strict pre-write approval listener
+    (window as any).xpro.onAiFileApprovalRequested((data: { requestId: string; toolName: string; filePath: string; oldContent: string; newContent: string }) => {
+      const fileName = data.filePath.split(/[\\/]/).pop() || data.filePath;
+      ApprovalService.addChange({
+        path: data.filePath,
+        oldContent: data.oldContent,
+        newContent: data.newContent,
+        toolName: data.toolName,
+        description: `${data.toolName}: ${fileName}`,
+        approvalRequestId: data.requestId,
+      });
+      this.aiAddSystem(this.lang === 'zh'
+        ? `AI 请求修改 ${fileName}，请查看 diff 后审批`
+        : `AI requested changes to ${fileName}. Review the diff to approve or reject.`);
+      this.showDiffModal();
+    });
+
     // Register AI file change listener (checkpoint + approval + lint)
-    (window as any).xpro.onAiFileChanged((data: { toolName: string; filePath: string; oldContent: string; newContent: string }) => {
+    (window as any).xpro.onAiFileChanged((data: { toolName: string; filePath: string; oldContent: string; newContent: string; preApproved?: boolean }) => {
       const fileName = data.filePath.split(/[\\/]/).pop() || data.filePath;
       console.log(`[ai:fileChanged] ${data.toolName} → ${fileName}`);
 
@@ -999,7 +1016,7 @@ export class WorkflowCanvas {
       }
 
       // 2. Add to approval queue (if approval is enabled)
-      if (ApprovalService.isEnabled()) {
+      if (ApprovalService.isEnabled() && !data.preApproved) {
         ApprovalService.addChange({
           path: data.filePath,
           oldContent: data.oldContent,

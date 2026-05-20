@@ -26,6 +26,9 @@ declare global {
       onShellData: (cb: (data: string) => void) => void;
       onShellExit: (cb: (code: number | null) => void) => void;
       nativeSearch: (dir: string, pattern: string) => Promise<any>;
+      onAiFileChanged: (cb: (data: { toolName: string; filePath: string; oldContent: string; newContent: string; preApproved?: boolean }) => void) => void;
+      onAiFileApprovalRequested: (cb: (data: { requestId: string; toolName: string; filePath: string; oldContent: string; newContent: string }) => void) => void;
+      respondAiFileApproval: (requestId: string, approved: boolean) => void;
       memoryRecall: (projectPath: string, query: string) => Promise<{ ok: boolean; data?: any[]; error?: string }>;
       memoryList: (projectPath: string) => Promise<{ ok: boolean; data?: any[]; error?: string }>;
       memoryForget: (projectPath: string, memoryId: string) => Promise<{ ok: boolean; error?: string }>;

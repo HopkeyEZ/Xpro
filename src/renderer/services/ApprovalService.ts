@@ -14,6 +14,7 @@ export interface FileChange {
   timestamp: number;
   toolName: string; // write_file | edit_file
   description: string;
+  approvalRequestId?: string; // present when the file has not been written yet
 }
 
 export interface DiffLine {
@@ -57,7 +58,11 @@ class ApprovalServiceClass {
     if (!change) return false;
 
     try {
-      await (window as any).xpro.writeFile(change.path, change.newContent);
+      if (change.approvalRequestId) {
+        (window as any).xpro.respondAiFileApproval(change.approvalRequestId, true);
+      } else {
+        await (window as any).xpro.writeFile(change.path, change.newContent);
+      }
       change.status = 'approved';
       this.moveToHistory(changeId);
       this.notify();
@@ -72,6 +77,9 @@ class ApprovalServiceClass {
   reject(changeId: string) {
     const change = this.pendingChanges.find(c => c.id === changeId);
     if (!change) return;
+    if (change.approvalRequestId) {
+      (window as any).xpro.respondAiFileApproval(change.approvalRequestId, false);
+    }
     change.status = 'rejected';
     this.moveToHistory(changeId);
     this.notify();
