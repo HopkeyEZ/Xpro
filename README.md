@@ -1,6 +1,6 @@
 # Xpro
 
-AI-powered desktop IDE with autonomous agent mode. It reads and edits your codebase, runs shell commands, manages sub-agents, and remembers project context across sessions — all from a single GUI window.
+An extensible multi-agent framework — a reusable core of a tool-calling loop, sub-agents, cross-session memory, and a unified multi-model protocol layer. Register your own tools to embed AI agents into any app. First shipped as an autonomous coding IDE: reading and editing your codebase, running shell commands, managing sub-agents, and remembering project context across sessions — all from a single GUI window.
 
 Optimized for DeepSeek (`deepseek-v4-pro` / `deepseek-v4-flash`), and also compatible with OpenAI and Anthropic protocols.
 
@@ -18,7 +18,7 @@ Optimized for DeepSeek (`deepseek-v4-pro` / `deepseek-v4-flash`), and also compa
 
 ## What Is It?
 
-Xpro is a desktop coding IDE that combines a full-featured code editor (Monaco / VS Code core) with an AI agent that can autonomously modify your project. It runs as a native Electron application on Windows.
+Xpro is an extensible multi-agent framework: its core — a tool-calling loop, sub-agent orchestration, cross-session memory, and a unified multi-model protocol layer — is reusable, so you can register your own tools and drop AI agents into any application. Its first end-to-end implementation is a desktop coding IDE that pairs a full-featured code editor (Monaco / VS Code core) with an AI agent that autonomously modifies your project, running as a native Electron application on Windows.
 
 ### Key Features
 
@@ -144,7 +144,7 @@ Pull requests welcome. Check the [open issues](https://github.com/HopkeyEZ/Xpro/
 
 ## 简体中文
 
-Xpro 是一个桌面 AI 编程 IDE，内置自主 Agent 模式。AI 可以直接读写代码、执行命令、管理子代理、跨会话记忆项目上下文。
+Xpro 是一套可二次开发的多智能体（Multi-Agent）框架：将工具调用循环、主 / 子 Agent 编排、跨会话记忆、多模型统一协议层沉淀为可复用内核，开发者注册自己的业务工具即可为任意应用接入 AI Agent 能力。首个落地形态是一个自主编程 IDE —— AI 可直接读写代码、执行命令、管理子代理、跨会话记忆项目上下文。
 
 专为 DeepSeek（`deepseek-v4-pro` / `deepseek-v4-flash`）优化，同时兼容 OpenAI 和 Anthropic 协议。
 
