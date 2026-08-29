@@ -412,7 +412,7 @@ async function openaiToolLoop(
       return;
     }
 
-    // Emit reasoning_content (DeepSeek thinking mode) as thinking indicator
+    // Emit reasoning_content (reasoning models) as thinking indicator
     if (msg.reasoning_content) {
       onEvent({ type: 'thinking' });
     }
@@ -429,7 +429,7 @@ async function openaiToolLoop(
         content: msg.content || null,
         tool_calls: msg.tool_calls,
       };
-      // DeepSeek thinking mode: must pass reasoning_content back
+      // Reasoning models: pass reasoning_content back
       if (msg.reasoning_content) asstMsg.reasoning_content = msg.reasoning_content;
       conversation.push(asstMsg);
 

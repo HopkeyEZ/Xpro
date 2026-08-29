@@ -22,5 +22,5 @@ If applicable, add screenshots.
 **Environment**
 - OS: [e.g. Windows 11]
 - Xpro version: [e.g. v0.1.0]
-- AI Provider: [e.g. DeepSeek / OpenAI]
-- Model: [e.g. deepseek-v4-flash]
+- AI Provider: [e.g. OpenAI / Anthropic]
+- Model: [e.g. gpt-4o / claude-sonnet-4]

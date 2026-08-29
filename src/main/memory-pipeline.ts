@@ -121,7 +121,6 @@ export async function extractMemories(
       const json = await res.json() as any;
       responseText = json.content?.[0]?.text || '[]';
     } else {
-      const isDeepSeek = base.includes('deepseek');
       const bodyObj: any = {
         model: config.model,
         temperature: 0.3,
@@ -130,13 +129,7 @@ export async function extractMemories(
           { role: 'user', content: `Extract memories from this conversation:\n\n${truncated}` },
         ],
       };
-      // DeepSeek: disable thinking mode for extraction (saves tokens, avoids empty content)
-      if (isDeepSeek) {
-        bodyObj.thinking = { type: 'disabled' };
-        bodyObj.response_format = { type: 'json_object' };
-        bodyObj.temperature = 0;
-      }
-      console.log(`[Memory-Pipeline] POST ${base}/chat/completions | model=${bodyObj.model} | isDeepSeek=${isDeepSeek} | userMsgLen=${bodyObj.messages[1]?.content?.length}`);
+      console.log(`[Memory-Pipeline] POST ${base}/chat/completions | model=${bodyObj.model} | userMsgLen=${bodyObj.messages[1]?.content?.length}`);
       const res = await net.fetch(`${base}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -153,8 +146,7 @@ export async function extractMemories(
       console.log(`[Memory-Pipeline] Raw API response (${rawText.length} chars): ${rawText.slice(0, 600)}`);
       const json = JSON.parse(rawText);
       const msg = json.choices?.[0]?.message;
-      // DeepSeek thinking models may put content in reasoning_content
-      responseText = msg?.content || msg?.reasoning_content || '[]';
+      responseText = msg?.content || '[]';
     }
 
     console.log(`[Memory-Pipeline] LLM raw response (${responseText.length} chars): ${responseText.slice(0, 500)}`);
@@ -175,7 +167,7 @@ export async function extractMemories(
 
     try {
       const parsed = JSON.parse(cleaned);
-      // Handle both direct array and wrapped object (e.g. DeepSeek json_object mode: {"memories": [...]})
+      // Handle both direct array and wrapped object (e.g. {"memories": [...]})
       if (Array.isArray(parsed)) {
         extracted = parsed;
       } else if (typeof parsed === 'object' && parsed !== null) {
@@ -251,17 +243,12 @@ JSON:`;
 
   try {
     const base = config.baseUrl.replace(/\/+$/, '');
-    const isDeepSeek = base.includes('deepseek');
     const bodyObj: any = {
       model: config.model,
       max_tokens: 500,
       temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     };
-    if (isDeepSeek) {
-      bodyObj.thinking = { type: 'disabled' };
-      bodyObj.response_format = { type: 'json_object' };
-    }
 
     const res = await net.fetch(`${base}/chat/completions`, {
       method: 'POST',

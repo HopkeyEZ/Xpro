@@ -87,7 +87,8 @@ function saveVectorProfile(profile: VectorProfile) {
 // ==================== Embedding API ====================
 
 /**
- * Get embeddings from API. Supports OpenAI and DeepSeek embedding endpoints.
+ * Get embeddings from an OpenAI-compatible embeddings endpoint.
+ * Providers without an embeddings API fall back to hash-based pseudo-vectors (see catch below).
  */
 async function getEmbeddings(
   config: AiConfig,
@@ -98,10 +99,6 @@ async function getEmbeddings(
 
   // Determine embedding model
   let embeddingModel = 'text-embedding-3-small';
-  if (base.includes('deepseek')) {
-    // DeepSeek doesn't have embedding API yet, fall back to simple hash-based pseudo-embeddings
-    return texts.map(t => textToSimpleVector(t));
-  }
 
   try {
     const res = await net.fetch(url, {
@@ -235,7 +232,7 @@ export async function buildVectors(
   }
 
   profile.dimension = profile.entries[0]?.embedding.length || 256;
-  profile.model = config.baseUrl.includes('deepseek') ? 'simple-hash' : 'text-embedding-3-small';
+  profile.model = 'text-embedding-3-small';
   profile.updatedAt = new Date().toISOString();
   saveVectorProfile(profile);
 

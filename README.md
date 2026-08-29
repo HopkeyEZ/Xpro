@@ -1,64 +1,89 @@
 # Xpro
 
-An extensible multi-agent framework — a reusable core of a tool-calling loop, sub-agents, cross-session memory, and a unified multi-model protocol layer. Register your own tools to embed AI agents into any app. First shipped as an autonomous coding IDE: reading and editing your codebase, running shell commands, managing sub-agents, and remembering project context across sessions — all from a single GUI window.
+An **extensible multi-agent framework** — a reusable core of a tool-calling loop, sub-agents, cross-session memory, and a unified multi-model protocol layer. Register your own tools to embed AI agents into any app. First shipped as an autonomous coding IDE.
 
-Optimized for DeepSeek (`deepseek-v4-pro` / `deepseek-v4-flash`), and also compatible with OpenAI and Anthropic protocols.
+Supports the **OpenAI** and **Anthropic** protocols.
 
 [简体中文](#简体中文)
 
-### Screenshots
-
-**Agent Mode** — AI autonomously reads files, runs commands, and edits code:
-
-![Xpro Agent Mode](docs/assets/xpro-agent-mode.png)
-
-**Memory & Change Tracking** — AI-categorized file changes + project memory:
-
-![Xpro Memory Panel](docs/assets/xpro-memory-panel.png)
+<p align="center">
+  <img src="docs/architecture.svg" alt="Xpro layered agent architecture" width="780" />
+</p>
 
 ## What Is It?
 
-Xpro is an extensible multi-agent framework: its core — a tool-calling loop, sub-agent orchestration, cross-session memory, and a unified multi-model protocol layer — is reusable, so you can register your own tools and drop AI agents into any application. Its first end-to-end implementation is a desktop coding IDE that pairs a full-featured code editor (Monaco / VS Code core) with an AI agent that autonomously modifies your project, running as a native Electron application on Windows.
+Xpro is an extensible multi-agent framework: its core — a tool-calling loop, sub-agent orchestration, cross-session memory, and a unified multi-model protocol layer — is reusable, so you can register your own tools and drop AI agents into any application (a server, a CLI, a mini-program / SaaS backend).
 
-### Key Features
+Its first end-to-end implementation is a **desktop coding IDE** that pairs a full-featured code editor (Monaco / VS Code core) with an AI agent that autonomously modifies your project, running as a native Electron application on Windows.
+
+## Architecture
+
+The framework is organized as six layers, bottom to top. Each layer talks only to the one below it, so **adding a tool never touches permission logic, and swapping a provider never touches the agent loop**.
+
+| Layer | Responsibility | Code |
+|-------|----------------|------|
+| **User Interface** | TUI / IDE / Web / SDK — many front-ends, one core | `src/renderer` |
+| **Session** | history, compaction, checkpoints, resume | `src/framework/session` |
+| **Orchestration** | agent loop, sub-agent dispatch, background tasks | `src/framework/orchestration` |
+| **Policy** | permission modes, hooks, sandbox, allowlists | `src/framework/policy` |
+| **Tools** | Read/Write/Edit/Bash/Glob/Grep/Web… + MCP | `src/framework/tools` |
+| **Model** | Messages API — tools / thinking / effort / caching (OpenAI · Anthropic) | `src/framework/model` |
+
+At its heart is the agent loop — strip away every wrapper and it's just: call the model with the tools, run the tool calls it asks for, pair every result back by id, repeat until the model is done. Everything else (round caps, permission gates, sub-agent isolation, compaction) is that loop made safe for production.
+
+## Use as a Framework (SDK)
+
+```ts
+import { createAgent, defineTool } from 'xpro';
+
+// Register your own business tool
+const placeOrder = defineTool({
+  name: 'place_order',
+  description: 'Place an order in the shop backend',
+  parameters: {
+    type: 'object',
+    properties: { sku: { type: 'string' }, qty: { type: 'number' } },
+    required: ['sku', 'qty'],
+  },
+  mutates: true,
+  handler: async ({ sku, qty }) => {
+    // call your real OpenAPI here
+    return `ordered ${qty} × ${sku}`;
+  },
+});
+
+const agent = createAgent({
+  provider: 'anthropic',                 // or 'openai'
+  baseUrl: 'https://api.anthropic.com',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  model: 'claude-sonnet-4',
+  mode: 'default',                       // ask before side-effecting tools
+  tools: [placeOrder],
+  approve: async (intent) => confirm(`Run ${intent.tool.name}?`),
+});
+
+const { finalText } = await agent.run('Order 2 units of SKU-42 and confirm');
+```
+
+The same core powers the IDE, a mini-program backend, or any service that needs an agent. Build the library with `npm run build:framework` (outputs `dist/framework`, exported as the package entry).
+
+## IDE Features
+
+The desktop IDE is the reference implementation that exercises the whole framework end-to-end:
 
 - **Agent mode** — the AI reads files, writes code, runs commands, and verifies results autonomously until the goal is complete
-- **Sub-agent system** — spawns parallel child agents for complex multi-step tasks
-- **Project memory** — cross-session memory extraction, storage, and recall so the AI remembers your codebase context
-- **AI-powered change categorization** — file changes are automatically grouped by impact area (Frontend UI, Backend API, Config, etc.)
-- **Thinking mode** — toggle DeepSeek's reasoning mode to see the model's chain-of-thought
-- **Visual annotation** — screenshot and draw on your screen, the AI reads your annotations and edits the corresponding code
-- **Multi-provider** — DeepSeek, OpenAI, Anthropic via a unified OpenAI-compatible protocol layer
-- **Monaco Editor** — VS Code's editor core with syntax highlighting for 20+ languages, multi-tab editing
+- **Sub-agent system** — spawns parallel child agents for complex multi-step tasks (context isolation)
+- **Project memory** — cross-session memory extraction, storage, and recall
+- **AI-powered change categorization** — file changes grouped by impact area (Frontend UI, Backend API, Config, …)
+- **Thinking mode** — surface a model's reasoning trace when supported
+- **Visual annotation** — screenshot and draw on your screen; the AI reads your annotations and edits the corresponding code
+- **Multi-provider** — OpenAI and Anthropic via a unified protocol layer
+- **Monaco Editor** — VS Code's editor core, syntax highlighting for 20+ languages, multi-tab editing
 - **Integrated terminal** — real PowerShell session embedded in the IDE, command output synced to the AI
-- **Rust-native search** — file traversal (`walkdir`) and full-text search (`ripgrep`-style) via `napi-rs` for native speed
+- **Rust-native search** — file traversal (`walkdir`) and full-text search (`ripgrep`-style) via `napi-rs`
 - **File change tracking** — every AI edit creates a checkpoint with diff view, one-click undo/redo
 - **Approval gates** — review and approve AI changes before they are applied
-- **Live cost tracking** — per-turn token usage displayed in the status bar
-- **Dark theme** — PyOneDark-inspired UI with resizable three-panel layout
-
-## How It's Wired
-
-```
-Electron main process (TypeScript)
-├── ai-bridge.ts        ← OpenAI/Anthropic streaming client, tool-call loop, thinking mode
-├── ai-tools.ts         ← Tool registry: read_file, write_file, edit_file, search, shell, sub_agent
-├── memory-pipeline.ts  ← LLM-based memory extraction, change summarization, AI categorization
-├── memory-store.ts     ← Vector-free memory storage with recall/forget/supersede
-├── ipc.ts              ← IPC handlers bridging main ↔ renderer
-└── preload.ts          ← contextBridge API surface
-
-Electron renderer (TypeScript + Webpack)
-├── WorkflowCanvas.ts   ← Main UI controller: chat, settings, memory panel, annotation
-├── Editor.ts           ← Monaco Editor integration
-├── FileTree.ts         ← Project file explorer
-├── Terminal.ts         ← Embedded PowerShell
-└── services/           ← AiService, CheckpointService, ApprovalService, AnnotationService
-
-Rust native module (napi-rs)
-├── search.rs           ← High-speed file/text search
-└── diff.rs             ← Line-level diff computation
-```
+- **Live cost tracking** — per-turn token usage in the status bar
 
 ## Install
 
@@ -78,39 +103,37 @@ cd Xpro
 npm install
 
 # Build the Rust native module
-cd native
-npm install
-npm run build
-cd ..
+cd native && npm install && npm run build && cd ..
 ```
 
 ### Development
 
 ```bash
-npm run build:main      # compile TypeScript (main process)
-npm start               # launch Electron in dev mode
+npm run build:main        # compile the main process
+npm run build:framework   # compile the framework SDK → dist/framework
+npm start                 # launch Electron in dev mode
 ```
 
 ### Package for Windows
 
 ```bash
-npm run build           # build main + renderer
-npm run dist            # electron-builder → NSIS installer in dist/
+npm run build             # main + framework + renderer + native
+npm run dist              # electron-builder → NSIS installer in dist/
 ```
 
 Prebuilt installers will be available on the [Releases](https://github.com/HopkeyEZ/Xpro/releases) page.
 
-## Quickstart
+## Quickstart (IDE)
 
 1. Launch Xpro
-2. Click the **Settings** button in the toolbar
+2. Click **Settings** in the toolbar
 3. Configure your AI provider:
 
 ```
 Provider:  OpenAI
-Base URL:  https://api.deepseek.com
-API Key:   sk-your-deepseek-api-key
-Model:     deepseek-v4-flash
+Base URL:  https://api.openai.com/v1
+API Key:   sk-your-api-key
+Model:     gpt-4o
 ```
 
 Settings are saved to `~/.xpro/config.json`.
@@ -122,9 +145,8 @@ Settings are saved to `~/.xpro/config.json`.
 
 | Provider | Base URL | Models |
 |----------|----------|--------|
-| DeepSeek | `https://api.deepseek.com` | `deepseek-v4-pro`, `deepseek-v4-flash` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4o-mini`, etc. |
-| Anthropic | `https://api.anthropic.com` | `claude-sonnet-4-20250514`, etc. |
+| Anthropic | `https://api.anthropic.com` | `claude-sonnet-4`, etc. |
 
 Any OpenAI-compatible endpoint works (e.g. local Ollama, vLLM, LM Studio).
 
@@ -132,7 +154,7 @@ Any OpenAI-compatible endpoint works (e.g. local Ollama, vLLM, LM Studio).
 
 Pull requests welcome. Check the [open issues](https://github.com/HopkeyEZ/Xpro/issues) for ideas.
 
-> **Note:** Not affiliated with DeepSeek Inc., OpenAI, or Anthropic.
+> **Note:** Not affiliated with OpenAI or Anthropic.
 
 ## License
 
@@ -144,17 +166,44 @@ Pull requests welcome. Check the [open issues](https://github.com/HopkeyEZ/Xpro/
 
 ## 简体中文
 
-Xpro 是一套可二次开发的多智能体（Multi-Agent）框架：将工具调用循环、主 / 子 Agent 编排、跨会话记忆、多模型统一协议层沉淀为可复用内核，开发者注册自己的业务工具即可为任意应用接入 AI Agent 能力。首个落地形态是一个自主编程 IDE —— AI 可直接读写代码、执行命令、管理子代理、跨会话记忆项目上下文。
+Xpro 是一套**可二次开发的多智能体（Multi-Agent）框架**：将工具调用循环、主 / 子 Agent 编排、跨会话记忆、多模型统一协议层沉淀为可复用内核，开发者注册自己的业务工具即可为任意应用（服务端、CLI、小程序 / SaaS 后端）接入 AI Agent 能力。首个落地形态是一个自主编程 IDE。
 
-专为 DeepSeek（`deepseek-v4-pro` / `deepseek-v4-flash`）优化，同时兼容 OpenAI 和 Anthropic 协议。
+仅支持 **OpenAI** 与 **Anthropic** 协议。
 
-### 核心功能
+### 六层架构
+
+自底向上分为六层，每层只与下一层交互——**新增工具不改权限逻辑，更换模型不改 agent loop**：
+
+- **用户界面** — TUI / IDE / Web / SDK
+- **会话层** — 历史、compaction、检查点、恢复(--resume)
+- **编排层** — agent loop、子 agent 派发、后台任务、调度
+- **策略层** — 权限模式、钩子、沙箱、允许列表（门设在执行层，不在提示词）
+- **工具层** — Read/Write/Edit/Bash/Glob/Grep/Web… + MCP 外部工具
+- **模型层** — Messages API（tools / thinking / effort / caching），OpenAI / Anthropic
+
+### 作为框架使用
+
+```ts
+import { createAgent, defineTool } from 'xpro';
+
+const agent = createAgent({
+  provider: 'anthropic',
+  baseUrl: 'https://api.anthropic.com',
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  model: 'claude-sonnet-4',
+  tools: [ /* 你的业务工具 */ ],
+});
+
+await agent.run('帮我处理订单 #1234 的退款并通知买家');
+```
+
+### IDE 核心功能
 
 - **Agent 模式** — AI 自主读文件、写代码、执行命令、验证结果
-- **Sub-Agent 并行** — 复杂任务自动拆分给多个子代理并行执行
+- **Sub-Agent 并行** — 复杂任务拆分给多个子代理并行执行（上下文隔离）
 - **项目记忆** — 跨会话提取、存储、召回项目上下文
-- **AI 变更归类** — 文件变更自动按影响范围分组（前端UI、后端API、配置等）
-- **思考模式** — 开启 DeepSeek 推理链，查看 AI 的思考过程
+- **AI 变更归类** — 文件变更自动按影响范围分组
+- **思考模式** — 支持时展示模型推理过程
 - **可视化标注** — 截图圈画，AI 直接修改对应代码
 - **Monaco 编辑器** — VS Code 同款内核，20+ 语言高亮
 - **内嵌终端** — 真实 PowerShell 会话
