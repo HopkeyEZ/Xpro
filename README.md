@@ -67,23 +67,20 @@ const { finalText } = await agent.run('Order 2 units of SKU-42 and confirm');
 
 The same core powers the IDE, a mini-program backend, or any service that needs an agent. Build the library with `npm run build:framework` (outputs `dist/framework`, exported as the package entry).
 
-## IDE Features
+## Core Capabilities
 
-The desktop IDE is the reference implementation that exercises the whole framework end-to-end:
+Everything the framework provides, independent of any front-end:
 
-- **Agent mode** — the AI reads files, writes code, runs commands, and verifies results autonomously until the goal is complete
-- **Sub-agent system** — spawns parallel child agents for complex multi-step tasks (context isolation)
-- **Project memory** — cross-session memory extraction, storage, and recall
-- **AI-powered change categorization** — file changes grouped by impact area (Frontend UI, Backend API, Config, …)
-- **Thinking mode** — surface a model's reasoning trace when supported
-- **Visual annotation** — screenshot and draw on your screen; the AI reads your annotations and edits the corresponding code
-- **Multi-provider** — OpenAI and Anthropic via a unified protocol layer
-- **Monaco Editor** — VS Code's editor core, syntax highlighting for 20+ languages, multi-tab editing
-- **Integrated terminal** — real PowerShell session embedded in the IDE, command output synced to the AI
-- **Rust-native search** — file traversal (`walkdir`) and full-text search (`ripgrep`-style) via `napi-rs`
-- **File change tracking** — every AI edit creates a checkpoint with diff view, one-click undo/redo
-- **Approval gates** — review and approve AI changes before they are applied
-- **Live cost tracking** — per-turn token usage in the status bar
+- **Autonomous agent loop** — the model calls tools, executes them, and verifies results until the goal is complete
+- **Sub-agent isolation** — dispatch parallel child agents; the parent only receives the summary, keeping its context clean
+- **Cross-session memory** — extract, store, and recall context across runs (vector-free store with recall / forget / supersede)
+- **Pluggable tool registry** — register your own tools; MCP-compatible external tools
+- **Policy & approval gates** — permission modes, hooks, and allowlists enforced at the execution layer, not the prompt
+- **Session management** — history, compaction, checkpoints, and resume
+- **Unified model layer** — OpenAI and Anthropic behind one interface: tools / thinking / effort / caching
+- **Interruptible + background tasks** — long runs can be aborted or backgrounded without losing state
+- **Action checkpoints** — every mutating step is recorded, with one-click rollback
+- **Rust-native primitives** — high-speed file traversal and full-text search via `napi-rs`
 
 ## Install
 
@@ -197,15 +194,17 @@ const agent = createAgent({
 await agent.run('帮我处理订单 #1234 的退款并通知买家');
 ```
 
-### IDE 核心功能
+### 核心能力
 
-- **Agent 模式** — AI 自主读文件、写代码、执行命令、验证结果
-- **Sub-Agent 并行** — 复杂任务拆分给多个子代理并行执行（上下文隔离）
-- **项目记忆** — 跨会话提取、存储、召回项目上下文
-- **AI 变更归类** — 文件变更自动按影响范围分组
-- **思考模式** — 支持时展示模型推理过程
-- **可视化标注** — 截图圈画，AI 直接修改对应代码
-- **Monaco 编辑器** — VS Code 同款内核，20+ 语言高亮
-- **内嵌终端** — 真实 PowerShell 会话
-- **Rust 原生搜索** — 基于 napi-rs 的高速文件/文本搜索
-- **变更检查点** — 每次 AI 修改自动记录，支持一键撤回/恢复
+以下能力由框架内核提供，与任何前端无关：
+
+- **自主 Agent 循环** — 模型调用工具、执行、验证，直到目标完成
+- **子 Agent 隔离** — 派发并行子 agent，主线只收到摘要，上下文保持干净
+- **跨会话记忆** — 跨运行提取、存储、召回（无向量存储，支持 recall / forget / supersede）
+- **可插拔工具注册表** — 注册你自己的业务工具，兼容 MCP 外部工具
+- **策略与审批门** — 权限模式、钩子、允许列表，落在执行层而非提示词
+- **会话管理** — 历史、compaction、检查点、resume
+- **统一模型层** — OpenAI 与 Anthropic 同一接口：tools / thinking / effort / caching
+- **可中断 + 后台任务** — 长任务可打断或转后台，状态不丢
+- **动作检查点** — 每步有副作用的操作都记录，可一键回滚
+- **Rust 原生组件** — 基于 napi-rs 的高速文件遍历与全文搜索
