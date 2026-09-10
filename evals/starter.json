@@ -1,0 +1,26 @@
+{
+  "id": "starter",
+  "cases": [
+    {
+      "id": "add-tests",
+      "origin": "repo",
+      "prompt": "Find the module in this repository with the weakest test coverage, add unit tests for it, run them, and make them pass.",
+      "tags": ["testing"],
+      "notes": "Repo-supplied task: the repo implies it, so it can't have been written to flatter the agent."
+    },
+    {
+      "id": "extract-duplication",
+      "origin": "authored",
+      "prompt": "Find logic duplicated across two files and extract it into one shared helper. Behaviour must not change; prove it by running the build or the tests.",
+      "tags": ["refactor"],
+      "notes": "Probes whether the agent verifies rather than asserting equivalence."
+    },
+    {
+      "id": "fix-from-failure",
+      "origin": "authored",
+      "prompt": "Run the test suite. If anything fails, fix the underlying cause — not the test. If everything passes, say so and change nothing.",
+      "tags": ["debugging", "restraint"],
+      "notes": "The no-op branch matters: an agent that edits files anyway is scored down for it."
+    }
+  ]
+}

@@ -1,10 +1,13 @@
 {
   "name": "xpro",
   "version": "0.1.1",
-  "description": "Xpro — an extensible multi-agent framework (OpenAI & Anthropic), shipped with an autonomous coding IDE",
+  "description": "Xpro — a runnable multi-agent process with a built-in evaluation system (OpenAI & Anthropic)",
   "author": "Hopkey",
   "license": "MIT",
-  "main": "dist/main/index.js",
+  "main": "dist/framework/index.js",
+  "bin": {
+    "xpro": "dist/runtime/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/framework/index.d.ts",
@@ -13,21 +16,27 @@
     "./framework": {
       "types": "./dist/framework/index.d.ts",
       "default": "./dist/framework/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/cli.d.ts",
+      "default": "./dist/runtime/cli.js"
     }
   },
   "scripts": {
-    "dev": "concurrently \"npm run dev:main\" \"npm run dev:renderer\" \"npm run dev:electron\"",
-    "dev:main": "tsc -p tsconfig.main.json --watch",
-    "dev:renderer": "webpack serve --config webpack.renderer.js --mode development",
-    "dev:electron": "wait-on http://localhost:9080 && cross-env NODE_ENV=development electron dist/main/index.js",
-    "build": "npm run build:main && npm run build:framework && npm run build:renderer && npm run build:native",
-    "build:main": "tsc -p tsconfig.main.json",
+    "build": "npm run build:runtime",
+    "build:runtime": "tsc -p tsconfig.runtime.json",
     "build:framework": "tsc -p tsconfig.framework.json",
-    "build:renderer": "webpack --config webpack.renderer.js --mode production",
-    "build:native": "cd native && npm run build",
-    "start": "electron dist/main/index.js",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "start": "node dist/runtime/cli.js",
+    "serve": "node dist/runtime/cli.js serve",
+    "eval": "node dist/runtime/cli.js eval evals/starter.json",
+    "ide": "npm run ide:build && electron dist/main/index.js",
+    "ide:dev": "concurrently \"npm run ide:dev:main\" \"npm run ide:dev:renderer\" \"npm run ide:dev:electron\"",
+    "ide:dev:main": "tsc -p tsconfig.main.json --watch",
+    "ide:dev:renderer": "webpack serve --config webpack.renderer.js --mode development",
+    "ide:dev:electron": "wait-on http://localhost:9080 && cross-env NODE_ENV=development electron dist/main/index.js",
+    "ide:build": "tsc -p tsconfig.main.json && webpack --config webpack.renderer.js --mode production && cd native && npm run build",
+    "ide:pack": "electron-builder --dir",
+    "ide:dist": "electron-builder"
   },
   "dependencies": {
     "monaco-editor": "^0.50.0",

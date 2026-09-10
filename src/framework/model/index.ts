@@ -60,6 +60,8 @@ export interface ModelResponse {
 
 export interface ModelClient {
   readonly provider: 'openai' | 'anthropic';
+  /** the model id this client talks to — needed to attribute results per model */
+  readonly model: string;
   complete(req: ModelRequest): Promise<ModelResponse>;
 }
 
@@ -75,7 +77,10 @@ const trimSlash = (s: string) => s.replace(/\/+$/, '');
 /** OpenAI-compatible Chat Completions client (also fits Azure/OSS gateways). */
 class OpenAIClient implements ModelClient {
   readonly provider = 'openai' as const;
-  constructor(private opts: ModelClientOptions) {}
+  readonly model: string;
+  constructor(private opts: ModelClientOptions) {
+    this.model = opts.model;
+  }
 
   async complete(req: ModelRequest): Promise<ModelResponse> {
     const base = trimSlash(this.opts.baseUrl);
@@ -141,7 +146,10 @@ class OpenAIClient implements ModelClient {
 /** Anthropic Messages API client. */
 class AnthropicClient implements ModelClient {
   readonly provider = 'anthropic' as const;
-  constructor(private opts: ModelClientOptions) {}
+  readonly model: string;
+  constructor(private opts: ModelClientOptions) {
+    this.model = opts.model;
+  }
 
   async complete(req: ModelRequest): Promise<ModelResponse> {
     const base = trimSlash(this.opts.baseUrl);

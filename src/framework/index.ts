@@ -110,8 +110,13 @@ export { PolicyEngine } from './policy';
 export { Session } from './session';
 export { createModelClient } from './model';
 export { runAgentLoop, runSubAgent } from './orchestration';
+export { runEvaluation, createGitWorkspace, llmJudge, formatReport } from './eval';
 export type { Tool, ToolContext } from './tools';
 export type { PermissionMode, PolicyOptions, Hook, Approver } from './policy';
 export type { ModelClient, ModelMessage, ModelToolSpec, ModelRequest, ModelResponse } from './model';
 export type { SessionSnapshot, Summarizer } from './session';
 export type { RunOptions, RunResult, LoopEvent } from './orchestration';
+export type {
+  EvalSuite, EvalCase, EvalOptions, EvalReport, CaseReport,
+  RolloutRecord, Scorer, Workspace, Exec, AgentFactory,
+} from './eval';

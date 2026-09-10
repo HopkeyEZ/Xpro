@@ -1,57 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="620" viewBox="0 0 900 620" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
-  <rect width="900" height="620" fill="#ffffff"/>
-  <text x="450" y="44" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">Xpro Agent Framework</text>
-  <text x="450" y="70" text-anchor="middle" font-size="15" fill="#475569">A layered, provider-agnostic agent runtime — OpenAI &amp; Anthropic</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700" viewBox="0 0 900 700" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
+  <rect width="900" height="700" fill="#ffffff"/>
+  <text x="450" y="44" text-anchor="middle" font-size="26" font-weight="700" fill="#0f172a">Xpro</text>
+  <text x="450" y="70" text-anchor="middle" font-size="15" fill="#475569">A runnable multi-agent process, with the eval layer that proves it works</text>
 
   <!-- flow arrows -->
   <g stroke="#94a3b8" stroke-width="2" fill="#94a3b8">
-    <line x1="60" y1="112" x2="60" y2="540" stroke-dasharray="4 4"/>
-    <polygon points="55,536 65,536 60,548"/>
-    <text x="60" y="104" text-anchor="middle" font-size="11" fill="#64748b" stroke="none">request</text>
-    <line x1="840" y1="548" x2="840" y2="120" stroke-dasharray="4 4"/>
+    <line x1="60" y1="112" x2="60" y2="616" stroke-dasharray="4 4"/>
+    <polygon points="55,612 65,612 60,624"/>
+    <text x="60" y="104" text-anchor="middle" font-size="11" fill="#64748b" stroke="none">task</text>
+    <line x1="840" y1="624" x2="840" y2="120" stroke-dasharray="4 4"/>
     <polygon points="835,124 845,124 840,112"/>
-    <text x="840" y="104" text-anchor="middle" font-size="11" fill="#64748b" stroke="none">result</text>
+    <text x="840" y="104" text-anchor="middle" font-size="11" fill="#64748b" stroke="none">diff</text>
   </g>
 
   <!-- layers -->
   <g font-family="'Segoe UI',system-ui,sans-serif">
-    <!-- UI -->
-    <rect x="120" y="100" width="660" height="66" rx="10" fill="#6366f1"/>
-    <text x="150" y="132" font-size="18" font-weight="700" fill="#ffffff">User Interface</text>
-    <text x="150" y="153" font-size="13" fill="#e0e7ff">TUI · IDE · Web · SDK  —  the same core, many front-ends</text>
-    <text x="762" y="137" text-anchor="end" font-size="11" fill="#c7d2fe">src/renderer</text>
+    <!-- Runtime -->
+    <rect x="120" y="100" width="660" height="66" rx="10" fill="#0ea5e9"/>
+    <text x="150" y="132" font-size="18" font-weight="700" fill="#ffffff">Runtime</text>
+    <text x="150" y="153" font-size="13" fill="#e0f2fe">xpro run · xpro serve · headless toolset (paths confined to the workspace root)</text>
+    <text x="762" y="137" text-anchor="end" font-size="11" fill="#bae6fd">src/runtime</text>
+
+    <!-- Eval -->
+    <rect x="120" y="176" width="660" height="66" rx="10" fill="#6366f1"/>
+    <text x="150" y="208" font-size="18" font-weight="700" fill="#ffffff">Eval</text>
+    <text x="150" y="229" font-size="13" fill="#e0e7ff">pristine workspace · N rollouts per prompt · scored on the diff, not the self-report</text>
+    <text x="762" y="213" text-anchor="end" font-size="11" fill="#c7d2fe">framework/eval</text>
 
     <!-- Session -->
-    <rect x="120" y="176" width="660" height="66" rx="10" fill="#8b5cf6"/>
-    <text x="150" y="208" font-size="18" font-weight="700" fill="#ffffff">Session</text>
-    <text x="150" y="229" font-size="13" fill="#ede9fe">history · compaction · checkpoints · resume (--resume)</text>
-    <text x="762" y="213" text-anchor="end" font-size="11" fill="#ddd6fe">framework/session</text>
+    <rect x="120" y="252" width="660" height="66" rx="10" fill="#8b5cf6"/>
+    <text x="150" y="284" font-size="18" font-weight="700" fill="#ffffff">Session</text>
+    <text x="150" y="305" font-size="13" fill="#ede9fe">history · compaction · checkpoints · resume (--resume)</text>
+    <text x="762" y="289" text-anchor="end" font-size="11" fill="#ddd6fe">framework/session</text>
 
     <!-- Orchestration -->
-    <rect x="120" y="252" width="660" height="66" rx="10" fill="#a855f7"/>
-    <text x="150" y="284" font-size="18" font-weight="700" fill="#ffffff">Orchestration</text>
-    <text x="150" y="305" font-size="13" fill="#f3e8ff">agent loop · sub-agent dispatch · background tasks · scheduling</text>
-    <text x="762" y="289" text-anchor="end" font-size="11" fill="#e9d5ff">framework/orchestration</text>
+    <rect x="120" y="328" width="660" height="66" rx="10" fill="#a855f7"/>
+    <text x="150" y="360" font-size="18" font-weight="700" fill="#ffffff">Orchestration</text>
+    <text x="150" y="381" font-size="13" fill="#f3e8ff">agent loop · sub-agent dispatch · background tasks · scheduling</text>
+    <text x="762" y="365" text-anchor="end" font-size="11" fill="#e9d5ff">framework/orchestration</text>
 
     <!-- Policy -->
-    <rect x="120" y="328" width="660" height="66" rx="10" fill="#c026d3"/>
-    <text x="150" y="360" font-size="18" font-weight="700" fill="#ffffff">Policy</text>
-    <text x="150" y="381" font-size="13" fill="#fae8ff">permission modes · hooks · sandbox · allowlists  (gate at execution, not the prompt)</text>
-    <text x="762" y="365" text-anchor="end" font-size="11" fill="#f5d0fe">framework/policy</text>
+    <rect x="120" y="404" width="660" height="66" rx="10" fill="#c026d3"/>
+    <text x="150" y="436" font-size="18" font-weight="700" fill="#ffffff">Policy</text>
+    <text x="150" y="457" font-size="13" fill="#fae8ff">permission modes · hooks · sandbox · allowlists  (gate at execution, not the prompt)</text>
+    <text x="762" y="441" text-anchor="end" font-size="11" fill="#f5d0fe">framework/policy</text>
 
     <!-- Tools -->
-    <rect x="120" y="404" width="660" height="66" rx="10" fill="#db2777"/>
-    <text x="150" y="436" font-size="18" font-weight="700" fill="#ffffff">Tools</text>
-    <text x="150" y="457" font-size="13" fill="#fce7f3">Read / Write / Edit / Bash / Glob / Grep / Web · Task · Todo  +  MCP external tools</text>
-    <text x="762" y="441" text-anchor="end" font-size="11" fill="#fbcfe8">framework/tools</text>
+    <rect x="120" y="480" width="660" height="66" rx="10" fill="#db2777"/>
+    <text x="150" y="512" font-size="18" font-weight="700" fill="#ffffff">Tools</text>
+    <text x="150" y="533" font-size="13" fill="#fce7f3">read · write · edit · list · search · run_command  +  MCP external tools</text>
+    <text x="762" y="517" text-anchor="end" font-size="11" fill="#fbcfe8">framework/tools</text>
 
     <!-- Model -->
-    <rect x="120" y="480" width="660" height="66" rx="10" fill="#e11d48"/>
-    <text x="150" y="512" font-size="18" font-weight="700" fill="#ffffff">Model</text>
-    <text x="150" y="533" font-size="13" fill="#ffe4e6">Messages API — tools · thinking · effort · caching   (OpenAI / Anthropic)</text>
-    <text x="762" y="517" text-anchor="end" font-size="11" fill="#fecdd3">framework/model</text>
+    <rect x="120" y="556" width="660" height="66" rx="10" fill="#e11d48"/>
+    <text x="150" y="588" font-size="18" font-weight="700" fill="#ffffff">Model</text>
+    <text x="150" y="609" font-size="13" fill="#ffe4e6">Messages API — tools · thinking · effort · caching   (OpenAI / Anthropic)</text>
+    <text x="762" y="593" text-anchor="end" font-size="11" fill="#fecdd3">framework/model</text>
   </g>
 
-  <text x="450" y="588" text-anchor="middle" font-size="12.5" fill="#64748b">Add a tool → no change to permission logic.  Swap a provider → no change to the agent loop.</text>
-  <text x="450" y="608" text-anchor="middle" font-size="12.5" fill="#94a3b8">First end-to-end implementation: an autonomous coding IDE (Electron · TypeScript · Monaco · Rust/napi-rs)</text>
+  <text x="450" y="662" text-anchor="middle" font-size="12.5" fill="#64748b">Add a tool → no change to permission logic.  Swap a provider → no change to the agent loop.</text>
+  <text x="450" y="682" text-anchor="middle" font-size="12.5" fill="#94a3b8">Core depends on nothing but global fetch · Node 18+ · Electron IDE remains as one optional front-end</text>
 </svg>
