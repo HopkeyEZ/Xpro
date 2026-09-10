@@ -1,0 +1,15 @@
+# Normalise line endings in the repo to LF, whatever the contributor's OS does
+# locally. Without this, a Windows checkout re-commits whole files as CRLF and
+# a diff that changed three lines shows up as three hundred.
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+*.png  binary
+*.ico  binary
+*.node binary
+
+# Generated / vendored — keep them out of language stats and diff noise.
+docs/assets/** linguist-documentation
