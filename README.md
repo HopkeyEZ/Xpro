@@ -32,6 +32,12 @@ Three ways to run the same loop:
 | `xpro serve --port 8787` | long-lived HTTP process, SSE event stream per turn | a backend driving agents |
 | `xpro eval <suite.json>` | N independent rollouts per prompt, scored, report written | knowing whether the above is any good |
 
+<p align="center">
+  <img src="docs/flow.svg" alt="Xpro flow: the agent loop and the evaluation loop side by side" width="820" />
+</p>
+
+Left is what happens on `xpro run`; right is `xpro eval` wrapping that same loop in a measurement harness. Nothing on the right reads the agent's account of its work — only the diff it left behind.
+
 All configuration is environment variables, so the process containerises without a config file:
 
 ```
@@ -208,6 +214,12 @@ node dist/runtime/cli.js run "给 parser 补单测并跑通"
 node dist/runtime/cli.js serve --port 8787
 node dist/runtime/cli.js eval evals/starter.json --rollouts 3
 ```
+
+<p align="center">
+  <img src="docs/flow.svg" alt="Xpro 流程图：agent loop 与评测 loop" width="820" />
+</p>
+
+左边是 `xpro run` 实际发生的事，右边是 `xpro eval` 把同一个循环包进测量装置里。右边这一列不读 Agent 自己的汇报，只看它留下的 diff。
 
 同一个循环的三种形态：`run` 跑一轮就退出（循环没干净结束时退出码非 0，CI 可以直接卡）；`serve` 常驻在 HTTP 后面，每轮以 SSE 推事件；`eval` 反复跑并打分——只有它能告诉你前两个到底行不行。
 
